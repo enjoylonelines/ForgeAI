@@ -3,14 +3,16 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from agents.base import MaxRetriesExceededError, ParseOutputError
 from core.logging import get_logger
 from core.ollama_client import health_check as ollama_health
 from models.equipment_log import EquipmentLog
+from models.user_query import NLDiagnosisResult, UserQueryRequest
 from pipeline.forge_pipeline import ForgePipeline, PipelineResult
+from pipeline.nl_diagnosis_pipeline import NLDiagnosisPipeline
 from rag.chroma_client import get_sop_collection, health_check as chroma_health
 from rag.ingestion import IngestResult, ingest_document
 from utils.csv_parser import parse_csv_logs
@@ -27,16 +29,29 @@ class CSVAnalyzeResult(BaseModel):
     improvement_metrics: dict = {}
 
 
-@router.post("/analyze", response_model=PipelineResult)
-async def analyze(request: Request, log: EquipmentLog) -> PipelineResult:
+@router.post("/analyze")
+async def analyze(request: Request, log: EquipmentLog) -> Response:
     correlation_id = request.headers.get("X-Correlation-ID") or uuid.uuid4().hex
     try:
         pipeline = ForgePipeline()
-        return await pipeline.run(log, correlation_id)
+        result = await pipeline.run(log, correlation_id)
     except MaxRetriesExceededError as exc:
         raise HTTPException(status_code=503, detail={"error": "llm_unavailable", "message": str(exc), "correlation_id": correlation_id})
     except ParseOutputError as exc:
         raise HTTPException(status_code=422, detail={"error": "parse_error", "message": str(exc), "correlation_id": correlation_id})
+
+    headers: dict[str, str] = {}
+    rec = result.validation_result.recommendation if result.validation_result else None
+    if rec == "REJECT":
+        headers["X-Plan-Status"] = "REJECTED"
+    elif rec == "REVIEW":
+        headers["X-Plan-Status"] = "REVIEW"
+
+    return Response(
+        content=result.model_dump_json(),
+        media_type="application/json",
+        headers=headers,
+    )
 
 
 @router.post("/analyze/csv", response_model=CSVAnalyzeResult)
@@ -98,6 +113,18 @@ async def analyze_csv(request: Request, file: UploadFile) -> CSVAnalyzeResult:
         results=results,
         improvement_metrics=improvement_metrics,
     )
+
+
+@router.post("/diagnose", response_model=NLDiagnosisResult)
+async def diagnose(request: Request, body: UserQueryRequest) -> NLDiagnosisResult:
+    correlation_id = request.headers.get("X-Correlation-ID") or uuid.uuid4().hex
+    try:
+        pipeline = NLDiagnosisPipeline()
+        return await pipeline.run(body, correlation_id)
+    except MaxRetriesExceededError as exc:
+        raise HTTPException(status_code=503, detail={"error": "llm_unavailable", "message": str(exc), "correlation_id": correlation_id})
+    except ParseOutputError as exc:
+        raise HTTPException(status_code=422, detail={"error": "parse_error", "message": str(exc), "correlation_id": correlation_id})
 
 
 @router.post("/ingest", response_model=IngestResult)

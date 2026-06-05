@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
 from agents.action_plan_agent import ActionPlanAgent
+from agents.diagnostic_agent import DiagnosticAgent
 from agents.hallucination_validator import HallucinationValidatorAgent
 from agents.perception_agent import PerceptionAgent
 from agents.risk_assessment_agent import RiskAssessmentAgent
@@ -16,6 +17,7 @@ from core.langfuse_client import get_langfuse, set_current_trace
 from core.logging import get_logger
 from models.action_plan import ActionPlan
 from models.anomaly_report import AnomalyReport
+from models.diagnostic_result import DiagnosticResult
 from models.equipment_log import EquipmentLog
 from models.risk_assessment import RiskAssessment
 from models.sop_context import SOPContext
@@ -35,6 +37,7 @@ class PipelineResult(BaseModel):
     correlation_id: str
     risk_assessment: RiskAssessment | None = None
     anomaly_report: AnomalyReport | None = None
+    diagnostic_result: DiagnosticResult | None = None
     sop_context: SOPContext | None = None
     action_plan: ActionPlan | None = None
     validation_result: ValidationResult | None = None
@@ -50,6 +53,7 @@ class _GraphState(BaseModel):
 
     risk_assessment: RiskAssessment | None = None
     anomaly_report: AnomalyReport | None = None
+    diagnostic_result: DiagnosticResult | None = None
     sop_context: SOPContext | None = None
     action_plan: ActionPlan | None = None
     validation_result: ValidationResult | None = None
@@ -65,6 +69,7 @@ class ForgePipeline:
     def __init__(self, model: str | None = None) -> None:
         self._risk = RiskAssessmentAgent(model=model)
         self._perception = PerceptionAgent(model=model)
+        self._diagnostic = DiagnosticAgent(model=model)
         self._sop_rag = SOPRAGAgent(model=model)
         self._action_plan = ActionPlanAgent(model=model)
         self._validator = HallucinationValidatorAgent(model=model)
@@ -84,6 +89,13 @@ class ForgePipeline:
         return {
             "anomaly_report": report,
             "stages_completed": state.stages_completed + ["perception"],
+        }
+
+    async def _node_diagnostic(self, state: _GraphState) -> dict[str, Any]:
+        result = await self._diagnostic.run(state.anomaly_report, state.correlation_id)
+        return {
+            "diagnostic_result": result,
+            "stages_completed": state.stages_completed + ["diagnostic"],
         }
 
     async def _node_sop_rag(self, state: _GraphState) -> dict[str, Any]:
@@ -152,6 +164,7 @@ class ForgePipeline:
 
         builder.add_node("risk_assessment", self._node_risk_assessment)
         builder.add_node("perception", self._node_perception)
+        builder.add_node("diagnostic", self._node_diagnostic)
         builder.add_node("sop_rag", self._node_sop_rag)
         builder.add_node("action_plan", self._node_action_plan)
         builder.add_node("validator", self._node_validator)
@@ -166,8 +179,9 @@ class ForgePipeline:
         builder.add_conditional_edges(
             "perception",
             self._route_after_perception,
-            {"sop_rag": "sop_rag", "end_no_anomaly": END},
+            {"sop_rag": "diagnostic", "end_no_anomaly": END},
         )
+        builder.add_edge("diagnostic", "sop_rag")
         builder.add_edge("sop_rag", "action_plan")
         builder.add_edge("action_plan", "validator")
         builder.add_conditional_edges(
@@ -242,6 +256,7 @@ class ForgePipeline:
             correlation_id=correlation_id,
             risk_assessment=final.risk_assessment,
             anomaly_report=final.anomaly_report,
+            diagnostic_result=final.diagnostic_result,
             sop_context=final.sop_context,
             action_plan=final.action_plan,
             validation_result=final.validation_result,

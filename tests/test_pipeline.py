@@ -7,6 +7,8 @@ import pytest
 from langchain_core.documents import Document
 
 from agents.base import BaseAgent
+from agents.diagnostic_agent import DiagnosticAgent
+from models.diagnostic_result import DiagnosticResult
 from pipeline.forge_pipeline import ForgePipeline, PipelineResult
 
 _NOW_ISO = "2026-06-03T08:00:00+00:00"
@@ -90,7 +92,18 @@ async def test_pipeline_full_run(sample_equipment_log, correlation_id):
     mock_emb = MagicMock()
     mock_emb.aembed_query = AsyncMock(return_value=embed_vec)
 
+    _mock_diagnostic = DiagnosticResult(
+        equipment_id="M-12345",
+        risk_index=78.9,
+        risk_interpretation="HIGH",
+        thresholds_checked=True,
+        alert_dispatched=False,
+        tool_calls=[],
+        summary="Tool wear at 95% — risk index HIGH.",
+    )
+
     with patch.object(BaseAgent, "_invoke_chain", new_callable=AsyncMock, side_effect=lambda *a, **kw: next(responses)), \
+         patch.object(DiagnosticAgent, "run", new_callable=AsyncMock, return_value=_mock_diagnostic), \
          patch("agents.sop_rag_agent.get_sop_collection", return_value=mock_col), \
          patch("agents.sop_rag_agent.get_langchain_vectorstore", return_value=mock_vs), \
          patch("agents.hallucination_validator.get_sop_collection", return_value=mock_col), \
@@ -111,6 +124,9 @@ async def test_pipeline_full_run(sample_equipment_log, correlation_id):
     assert result.validation_result is not None
     assert result.validation_result.correlation_id == correlation_id
     assert result.validation_result.recommendation in ("APPROVE", "REVIEW", "REJECT")
+    assert result.diagnostic_result is not None
+    assert result.diagnostic_result.equipment_id == "M-12345"
+    assert result.diagnostic_result.risk_index == 78.9
 
 
 async def test_pipeline_early_exit_on_safe(sample_equipment_log, correlation_id):
@@ -156,7 +172,17 @@ async def test_pipeline_correlation_id_propagated(sample_equipment_log):
     mock_emb = MagicMock()
     mock_emb.aembed_query = AsyncMock(return_value=embed_vec)
 
+    _mock_diagnostic = DiagnosticResult(
+        equipment_id="M-12345",
+        risk_index=50.0,
+        risk_interpretation="MEDIUM",
+        thresholds_checked=True,
+        tool_calls=[],
+        summary="Risk index MEDIUM.",
+    )
+
     with patch.object(BaseAgent, "_invoke_chain", new_callable=AsyncMock, side_effect=lambda *a, **kw: next(responses)), \
+         patch.object(DiagnosticAgent, "run", new_callable=AsyncMock, return_value=_mock_diagnostic), \
          patch("agents.sop_rag_agent.get_sop_collection", return_value=mock_col), \
          patch("agents.sop_rag_agent.get_langchain_vectorstore", return_value=mock_vs), \
          patch("agents.hallucination_validator.get_sop_collection", return_value=mock_col), \
