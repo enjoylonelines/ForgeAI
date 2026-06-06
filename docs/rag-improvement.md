@@ -213,3 +213,56 @@ HallucinationValidatorAgent가 임베딩 유사도 대신 LLM에게 직접 "이 
 **현재 환경 한계:** M2 Air 8GB — qwen2.5:7b가 실질적 상한. 14B부터 스왑 발생으로 응답 시간 분 단위로 증가.
 
 **재시도 조건:** RTX GPU 환경에서 qwen2.5:14b 이상 또는 vLLM 서빙으로 처리량 개선 후 전체 파이프라인 재측정.
+
+---
+
+### grounding_score_threshold와 recommendation 구간의 불일치
+
+**현재 상태:**
+
+`core/config.py`의 `grounding_score_threshold` (기본값 0.75)는 **두 가지 역할을 동시에** 수행한다.
+
+1. `StepValidation.is_grounded` 판정 기준 — 개별 스텝이 SOP에 근거했는지 여부
+2. `ValidationResult.is_valid` 판정 기준 — 전체 액션 플랜의 유효성 여부
+
+반면, recommendation 구간(`hallucination_validator.py` 90~95번째 줄)은 별도로 하드코딩되어 있다.
+
+```python
+if overall >= 0.85:
+    recommendation = "APPROVE"
+elif overall >= 0.60:
+    recommendation = "REVIEW"
+else:
+    recommendation = "REJECT"
+```
+
+이로 인해 다음 불일치가 발생한다.
+
+| overall_grounding_score | is_valid | recommendation |
+|------------------------|----------|----------------|
+| 0.85 이상              | True     | APPROVE        |
+| 0.75 ~ 0.84            | True     | REVIEW         | ← is_valid=True지만 사람 검토 요청
+| 0.60 ~ 0.74            | False    | REVIEW         | ← REVIEW/REJECT 경계가 threshold 기준과 다름
+| 0.60 미만              | False    | REJECT         |
+
+`is_valid=True`이면서 `recommendation=REVIEW`인 구간(0.75~0.84)에서 파이프라인이 재시도를 건너뛰고 종료한다. 이는 보수적 설계로 의도된 동작이지만, threshold 하나의 값이 is_grounded와 is_valid 두 판정에 모두 영향을 준다는 구조적 모호성이 있다.
+
+**개선 방향:**
+
+임계값을 역할별로 분리한다.
+
+```python
+# core/config.py 에 추가
+grounding_score_threshold: float = 0.75       # StepValidation.is_grounded 기준 (기존)
+approval_score_threshold: float = 0.85        # recommendation APPROVE 기준 (신규)
+review_score_threshold: float = 0.60          # recommendation REVIEW 하한 (신규)
+```
+
+세 값을 config에서 관리하면 threshold 변경이 recommendation 구간에도 일관되게 반영되며, 환경 변수로 조정 가능해진다.
+
+**트레이드오프:**
+- 장점: 역할 명확화, 구간 변경 시 config 한 곳만 수정
+- 단점: 파라미터 3개 → 조합 실수 가능성, 값 간 관계(review < threshold ≤ approval) 보장하는 검증 로직 필요
+- 현재 REVIEW 구간(0.60~0.85)은 제조 도메인 보수적 설계의 의도된 넓이이므로, 변경 시 도메인 전문가 검토 필요
+
+**적용 조건:** LLM-as-judge 검증기로 교체 후 grounding_score 분포가 안정화된 시점에 재검토.
