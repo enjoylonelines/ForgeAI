@@ -25,6 +25,26 @@ _VALID_QUERY_BODY = {
     "equipment_id": None,
 }
 
+_VALID_CONTROL_BODY = {
+    "dry_run": True,
+    "action_plan": {
+        "equipment_id": "M-12345",
+        "generated_at": "2026-06-06T00:00:00Z",
+        "steps": [
+            {
+                "step_number": 1,
+                "action": "Stop machine immediately",
+                "responsible_role": "maintenance_technician",
+                "priority": "P1",
+                "estimated_duration_minutes": 5,
+                "sop_reference": "SOP-MNT-001.md::chunk::2",
+            }
+        ],
+        "escalation_required": False,
+        "escalation_reason": None,
+    },
+}
+
 
 @pytest.fixture
 async def api_client():
@@ -143,6 +163,36 @@ async def test_diagnose_invalid_body_returns_422(api_client):
     """/diagnose에 query 필드 누락 시 422를 반환한다."""
     response = await api_client.post("/api/v1/diagnose", json={"equipment_id": "M-1"})
     assert response.status_code == 422
+
+
+# ── /control/plan 에러 핸들링 ──────────────────────────────────────────────────
+
+async def test_control_plan_returns_dry_run_result(api_client):
+    """C++ 산업제어 어댑터 결과를 API 응답으로 반환한다."""
+    with patch("api.routes.execute_control_plan") as execute:
+        execute.return_value = {
+            "correlation_id": "cid-001",
+            "dry_run": True,
+            "command_count": 1,
+            "results": [
+                {
+                    "equipment_id": "M-12345",
+                    "command_type": "STOP_MACHINE",
+                    "status": "accepted",
+                    "dry_run": True,
+                    "adapter": "cpp-control-adapter-v1",
+                    "message": "Dry-run accepted STOP_MACHINE",
+                    "correlation_id": "cid-001",
+                }
+            ],
+            "safety_note": "C++ adapter is wired in dry-run mode only; no PLC or actuator is modified.",
+        }
+        response = await api_client.post("/api/v1/control/plan", json=_VALID_CONTROL_BODY)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["command_count"] == 1
+    assert body["results"][0]["adapter"] == "cpp-control-adapter-v1"
 
 
 # ── /health 에러 핸들링 ────────────────────────────────────────────────────────

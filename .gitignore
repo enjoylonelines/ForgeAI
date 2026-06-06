@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 dist/
+build/
 *.egg-info/
 data/chroma/
 data/sample_logs/*.csv

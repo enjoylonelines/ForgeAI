@@ -1,7 +1,7 @@
 # ForgeAI
 
 제조 설비 로그를 분석하는 **온프레미스 멀티에이전트 RAG 시스템**.  
-외부 API 없이 Ollama 로컬 LLM만으로 위험 사전 평가 → 이상 감지 → Tool Use 진단 → SOP 조회 → 조치 계획 생성 → 할루시네이션 검증까지 **LangGraph StateGraph** 기반으로 완결합니다.
+외부 API 없이 Ollama 로컬 LLM만으로 위험 사전 평가 → 이상 감지 → Tool Use 진단 → SOP 조회 → 조치 계획 생성 → 할루시네이션 검증 → C++ 산업제어 dry-run까지 **LangGraph StateGraph** 기반으로 완결합니다.
 
 ---
 
@@ -51,6 +51,26 @@ EquipmentLog (센서 데이터)
   PipelineResult (risk_assessment, anomaly_report, action_plan, metrics)
 ```
 
+### C++ 산업제어 어댑터 (`POST /api/v1/control/plan`)
+
+```
+ActionPlan (SOP-grounded 조치 계획)
+        │
+        ▼
+Python Control Bridge
+  - P1 stop/isolate/inspect 문장을 산업제어 명령 후보로 매핑
+  - live write 차단, dry_run만 허용
+        │
+        ▼
+C++ Control Adapter
+  - STOP_MACHINE / LOCKOUT_TAGOUT / SCHEDULE_INSPECTION / NOTIFY_SUPERVISOR 검증
+  - JSON 승인 결과 반환
+        ▼
+ControlPlanResult
+```
+
+이 어댑터는 실제 PLC·모터·액추에이터를 제어하지 않습니다. 제조 안전 도메인 포트폴리오 목적상 **LLM 조치 계획을 C++ 제어 계층으로 전달하는 인터페이스와 안전 게이트**만 dry-run으로 증명합니다.
+
 **LangGraph 그래프 조건 분기:**
 
 ```
@@ -99,6 +119,7 @@ UserQuery (자연어)
 | 벡터 DB | ChromaDB (로컬 영구 저장) | `./data/chroma`, failure_type 메타데이터 필터 |
 | 데이터셋 | UCI AI4I 2020 Predictive Maintenance | `ucimlrepo` 패키지, id=601 |
 | API | FastAPI + uvicorn | REST 4개 엔드포인트 |
+| 산업제어 어댑터 | C++17 + Python subprocess bridge | dry-run 전용, live hardware write 차단 |
 | 관찰 가능성 | Langfuse | 에이전트별 트레이스, correlation_id 전파 |
 | 테스트 | pytest + pytest-asyncio | 26개 단위 테스트 |
 
@@ -135,6 +156,13 @@ cp .env.example .env
 ```bash
 uvicorn main:app --reload
 # http://localhost:8000
+```
+
+### C++ 산업제어 어댑터 빌드
+
+```bash
+./scripts/build_control_adapter.sh
+# build/control_adapter
 ```
 
 ### SOP 문서 초기 인덱싱
@@ -228,6 +256,63 @@ curl -s -X POST http://localhost:8000/api/v1/diagnose \
   | python3 -m json.tool
 ```
 
+### C++ 산업제어 dry-run — `POST /api/v1/control/plan`
+
+SOP 검증을 통과하거나 REVIEW로 분기된 `action_plan`을 C++ 제어 어댑터에 dry-run으로 전달합니다.
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/control/plan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dry_run": true,
+    "action_plan": {
+      "equipment_id": "M-12345",
+      "generated_at": "2026-06-06T00:00:00Z",
+      "steps": [
+        {
+          "step_number": 1,
+          "action": "Stop machine immediately after current cycle",
+          "responsible_role": "maintenance_technician",
+          "priority": "P1",
+          "estimated_duration_minutes": 5,
+          "sop_reference": "SOP-MNT-001.md::chunk::2"
+        },
+        {
+          "step_number": 2,
+          "action": "Remove and inspect tool for wear",
+          "responsible_role": "maintenance_technician",
+          "priority": "P1",
+          "estimated_duration_minutes": 15,
+          "sop_reference": "SOP-MNT-001.md::chunk::3"
+        }
+      ],
+      "escalation_required": true,
+      "escalation_reason": "Tool wear is above the safe operating threshold."
+    }
+  }' | python3 -m json.tool
+```
+
+응답 예시:
+
+```json
+{
+  "correlation_id": "abc123",
+  "dry_run": true,
+  "command_count": 3,
+  "results": [
+    {
+      "equipment_id": "M-12345",
+      "command_type": "STOP_MACHINE",
+      "status": "accepted",
+      "dry_run": true,
+      "adapter": "cpp-control-adapter-v1",
+      "message": "Dry-run accepted STOP_MACHINE for M-12345..."
+    }
+  ],
+  "safety_note": "C++ adapter is wired in dry-run mode only; no PLC or actuator is modified."
+}
+```
+
 ### CSV 배치 분석 — `POST /api/v1/analyze/csv`
 
 ```bash
@@ -277,6 +362,7 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 | `TOP_K_RETRIEVAL` | `5` | ChromaDB 상위 k 검색 수 |
 | `LANGFUSE_PUBLIC_KEY` | — | Langfuse 트레이스 (선택) |
 | `LANGFUSE_SECRET_KEY` | — | Langfuse 트레이스 (선택) |
+| `CONTROL_ADAPTER_PATH` | `./build/control_adapter` | C++ dry-run 제어 어댑터 경로 |
 
 ---
 
@@ -311,6 +397,10 @@ ForgeAI/
 ├── pipeline/
 │   ├── forge_pipeline.py          # LangGraph StateGraph 메인 파이프라인
 │   └── nl_diagnosis_pipeline.py   # 자연어 진단 3-노드 파이프라인
+├── control/
+│   └── bridge.py                  # ActionPlan → C++ 산업제어 dry-run 브리지
+├── cpp/
+│   └── control_adapter.cpp        # C++17 dry-run 제어 명령 어댑터
 ├── tools/
 │   └── sensor_tools.py            # LangChain @tool 3종: 임계값/위험지수/알림
 ├── api/
@@ -326,6 +416,7 @@ ForgeAI/
 ├── rag/                           # ChromaDB 클라이언트, 임베더, 인제스트
 ├── scripts/
 │   ├── analyze.sh                 # 단건 분석 테스트 스크립트
+│   ├── build_control_adapter.sh   # C++ 산업제어 어댑터 빌드
 │   └── reindex.sh                 # ChromaDB 초기화 및 재인덱싱
 ├── tests/                         # pytest 단위 테스트 (26개)
 └── utils/                         # CSV 파서, AI4I 데이터 로더
@@ -360,6 +451,7 @@ ForgeAI/
 - **LangGraph StateGraph**: 조건 분기 + 재시도 루프를 선언적으로 표현. 단순 순차 파이프라인 대비 SAFE 조기 종료로 LLM 호출 절감
 - **예방 레이어 (RiskAssessmentAgent)**: 감지·대응보다 앞선 Prevention 단계. 실시간 스트리밍 시나리오 시뮬레이션 (AI4I 2020은 사후 라벨 데이터)
 - **Tool Use / ReAct**: `bind_tools()` 기반 도구 호출 루프로 에이전트가 센서 임계값 조회, 위험지수 계산, 알림 발송을 자율 수행
+- **C++ 산업제어 연동**: LLM이 만든 ActionPlan을 Python bridge가 안전 명령 후보로 변환하고 C++17 어댑터가 dry-run 승인. 실제 장비 제어는 의도적으로 차단
 - **보수적 임계값 (0.75)**: REVIEW 판정은 버그가 아닌 의도된 안전 설계. 제조 도메인에서 false negative보다 false positive가 낫다는 판단
 - **온프레미스**: Ollama만 사용, OpenAI API 등 외부 의존성 없음
 - **트레이스 로깅**: 모든 에이전트 호출에 `correlation_id` + Langfuse 스팬 전파

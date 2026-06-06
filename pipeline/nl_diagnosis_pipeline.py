@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
-from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
-from agents.base import MaxRetriesExceededError, ParseOutputError
+from agents.base import BaseAgent, ParseOutputError
 from agents.intent_extraction_agent import IntentExtractionAgent
 from core.config import get_settings
-from core.langchain_client import get_chat_llm
 from core.langfuse_client import get_langfuse, set_current_trace
 from core.logging import get_logger
 from models.sop_context import SOPChunk
@@ -35,8 +31,12 @@ class _NLGraphState(BaseModel):
 class NLDiagnosisPipeline:
     def __init__(self, model: str | None = None) -> None:
         self._intent_agent = IntentExtractionAgent(model=model)
-        self._model = model
-        self._diag_chain = self._build_diag_chain(model)
+        self._diagnosis_agent = BaseAgent(
+            system_prompt=diag_prompt.SYSTEM,
+            model=model,
+            prompt_name=diag_prompt.NAME,
+            prompt_version=diag_prompt.VERSION,
+        )
         self._graph = self._build_graph()
 
     # ── nodes ──────────────────────────────────────────────────────────────────
@@ -102,24 +102,12 @@ class NLDiagnosisPipeline:
             sop_chunks=[c.model_dump() for c in state.sop_chunks],
         )
         try:
-            data: dict = await self._diag_chain.ainvoke({"user_message": user_msg})
+            data: dict = await self._diagnosis_agent._invoke_chain(user_msg, state.correlation_id)
             diagnosis = data.get("diagnosis", "진단 응답을 생성하지 못했습니다.")
         except Exception as exc:
             raise ParseOutputError(f"NLDiagnosisPipeline diagnosis failed: {exc}") from exc
 
         return {"diagnosis": diagnosis}
-
-    # ── chain builder ──────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _build_diag_chain(model: str | None) -> Any:
-        prompt_tmpl = ChatPromptTemplate.from_messages([
-            SystemMessage(content=diag_prompt.SYSTEM),
-            HumanMessagePromptTemplate.from_template("{user_message}"),
-        ])
-        return (
-            prompt_tmpl | get_chat_llm(model) | JsonOutputParser()
-        ).with_retry(stop_after_attempt=3, wait_exponential_jitter=True)
 
     # ── graph builder ──────────────────────────────────────────────────────────
 
