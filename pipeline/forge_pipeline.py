@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
@@ -91,18 +92,16 @@ class ForgePipeline:
             "stages_completed": state.stages_completed + ["perception"],
         }
 
-    async def _node_diagnostic(self, state: _GraphState) -> dict[str, Any]:
-        result = await self._diagnostic.run(state.anomaly_report, state.correlation_id)
+    async def _node_diagnostic_and_sop_rag(self, state: _GraphState) -> dict[str, Any]:
+        """Run diagnostic and SOP-RAG in parallel — both only need anomaly_report."""
+        diagnostic_result, sop_ctx = await asyncio.gather(
+            self._diagnostic.run(state.anomaly_report, state.correlation_id),
+            self._sop_rag.run(state.anomaly_report, state.correlation_id),
+        )
         return {
-            "diagnostic_result": result,
-            "stages_completed": state.stages_completed + ["diagnostic"],
-        }
-
-    async def _node_sop_rag(self, state: _GraphState) -> dict[str, Any]:
-        ctx = await self._sop_rag.run(state.anomaly_report, state.correlation_id)
-        return {
-            "sop_context": ctx,
-            "stages_completed": state.stages_completed + ["sop_rag"],
+            "diagnostic_result": diagnostic_result,
+            "sop_context": sop_ctx,
+            "stages_completed": state.stages_completed + ["diagnostic", "sop_rag"],
         }
 
     async def _node_action_plan(self, state: _GraphState) -> dict[str, Any]:
@@ -144,7 +143,7 @@ class ForgePipeline:
     @staticmethod
     def _route_after_perception(state: _GraphState) -> str:
         if state.anomaly_report and state.anomaly_report.has_anomaly:
-            return "sop_rag"
+            return "parallel"
         return "end_no_anomaly"
 
     @staticmethod
@@ -164,8 +163,7 @@ class ForgePipeline:
 
         builder.add_node("risk_assessment", self._node_risk_assessment)
         builder.add_node("perception", self._node_perception)
-        builder.add_node("diagnostic", self._node_diagnostic)
-        builder.add_node("sop_rag", self._node_sop_rag)
+        builder.add_node("diagnostic_and_sop_rag", self._node_diagnostic_and_sop_rag)
         builder.add_node("action_plan", self._node_action_plan)
         builder.add_node("validator", self._node_validator)
 
@@ -179,10 +177,9 @@ class ForgePipeline:
         builder.add_conditional_edges(
             "perception",
             self._route_after_perception,
-            {"sop_rag": "diagnostic", "end_no_anomaly": END},
+            {"parallel": "diagnostic_and_sop_rag", "end_no_anomaly": END},
         )
-        builder.add_edge("diagnostic", "sop_rag")
-        builder.add_edge("sop_rag", "action_plan")
+        builder.add_edge("diagnostic_and_sop_rag", "action_plan")
         builder.add_edge("action_plan", "validator")
         builder.add_conditional_edges(
             "validator",

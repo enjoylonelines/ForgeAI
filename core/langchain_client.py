@@ -15,6 +15,8 @@ def get_chat_llm(model: str | None = None) -> ChatOllama:
         base_url=s.ollama_base_url,
         temperature=0.1,
         timeout=int(s.ollama_timeout_seconds),
+        num_ctx=s.ollama_num_ctx,
+        num_predict=s.ollama_num_predict,
     )
 
 
