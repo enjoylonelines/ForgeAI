@@ -3,6 +3,8 @@
 제조 설비 로그를 분석하는 **온프레미스 멀티에이전트 RAG 시스템**.  
 외부 API 없이 Ollama 로컬 LLM만으로 위험 사전 평가 → 이상 감지 → Tool Use 진단 → SOP 조회 → 조치 계획 생성 → 할루시네이션 검증 → C++ 산업제어 dry-run까지 **LangGraph StateGraph** 기반으로 완결합니다.
 
+폐쇄망·온프레미스 제약 환경에서 LLM 파이프라인을 실용적으로 설계하는 것이 핵심 목표입니다. 각 컴포넌트는 "왜 LLM이 필요한가"를 기준으로 선택했으며, 산술 판단은 rule engine, 언어 추론이 필요한 부분만 LLM을 씁니다.
+
 ---
 
 ## 아키텍처
@@ -446,12 +448,29 @@ ForgeAI/
 
 ## 설계 의도
 
-이 프로젝트는 **제조 도메인 온프레미스 LLM 멀티에이전트 파이프라인** 구현 능력을 보여주기 위해 설계되었습니다.
+### LLM을 쓰는 기준
 
-- **LangGraph StateGraph**: 조건 분기 + 재시도 루프를 선언적으로 표현. 단순 순차 파이프라인 대비 SAFE 조기 종료로 LLM 호출 절감
-- **예방 레이어 (RiskAssessmentAgent)**: 감지·대응보다 앞선 Prevention 단계. 실시간 스트리밍 시나리오 시뮬레이션 (AI4I 2020은 사후 라벨 데이터)
+각 컴포넌트는 **"이 판단에 언어 이해가 필요한가"** 를 기준으로 LLM 사용 여부를 결정합니다.
+
+| 판단 유형 | 담당 | 이유 |
+|-----------|------|------|
+| 센서 임계값 초과 여부 | rule engine | 산술 비교, 결정적 처리 |
+| 이상 패턴 원인 추론 | LLM (PerceptionAgent) | 센서 조합 해석, 도메인 언어 필요 |
+| SOP 기반 조치 계획 생성 | LLM (ActionPlanAgent) | 문서 이해 + 절차 생성 |
+| 근거 검증 | 임베딩 코사인 유사도 | 수치 계산, LLM 불필요 |
+
+### 주요 설계 결정
+
+- **LangGraph StateGraph**: 조건 분기 + 재시도 루프를 선언적으로 표현. SAFE 조기 종료로 불필요한 LLM 호출 차단
+- **2-tier 처리**: rule engine(수ms) → LLM pipeline(수초). 모든 row를 LLM에 보내지 않음
 - **Tool Use / ReAct**: `bind_tools()` 기반 도구 호출 루프로 에이전트가 센서 임계값 조회, 위험지수 계산, 알림 발송을 자율 수행
-- **C++ 산업제어 연동**: LLM이 만든 ActionPlan을 Python bridge가 안전 명령 후보로 변환하고 C++17 어댑터가 dry-run 승인. 실제 장비 제어는 의도적으로 차단
-- **보수적 임계값 (0.75)**: REVIEW 판정은 버그가 아닌 의도된 안전 설계. 제조 도메인에서 false negative보다 false positive가 낫다는 판단
-- **온프레미스**: Ollama만 사용, OpenAI API 등 외부 의존성 없음
+- **C++ 산업제어 연동**: LLM 조치 계획을 Python bridge가 안전 명령 후보로 변환하고 C++17 어댑터가 dry-run 승인. live hardware write는 의도적으로 차단
+- **보수적 grounding 임계값 (0.75)**: REVIEW 판정은 버그가 아닌 안전 설계. 제조 도메인에서 false negative보다 false positive가 낫다는 판단
+- **온프레미스**: Ollama만 사용, 외부 API 의존성 없음
 - **트레이스 로깅**: 모든 에이전트 호출에 `correlation_id` + Langfuse 스팬 전파
+
+### 한계 및 개선 방향
+
+실용적 설계를 지향하지만 현재 구조에서 개선 중인 부분이 있습니다. [`docs/troubleshooting.md`](docs/troubleshooting.md) 참고.
+
+> 이 프로젝트는 제조 도메인 멀티에이전트 RAG 시스템 포트폴리오이기도 합니다.
