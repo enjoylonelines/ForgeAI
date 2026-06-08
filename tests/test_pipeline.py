@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 from agents.base import BaseAgent
 from agents.diagnostic_agent import DiagnosticAgent
 from models.diagnostic_result import DiagnosticResult
+from models.equipment_log import EquipmentLog, SensorReading
 from pipeline.forge_pipeline import ForgePipeline, PipelineResult
 
 _NOW_ISO = "2026-06-03T08:00:00+00:00"
@@ -84,7 +85,9 @@ def _make_mock_vectorstore() -> MagicMock:
 
 
 async def test_pipeline_full_run(sample_equipment_log, correlation_id):
-    responses = iter([_RISK_ASSESSMENT_DICT, _PERCEPTION_DICT, _SOP_QUERY_DICT, _ACTION_PLAN_DICT])
+    # Risk assessment is now handled by the rule engine — _invoke_chain is called
+    # only for perception, sop_rag (query extraction), and action_plan.
+    responses = iter([_PERCEPTION_DICT, _SOP_QUERY_DICT, _ACTION_PLAN_DICT])
 
     embed_vec = [1.0] + [0.0] * 767
     mock_col = _make_mock_col(embed_vec)
@@ -129,29 +132,23 @@ async def test_pipeline_full_run(sample_equipment_log, correlation_id):
     assert result.diagnostic_result.risk_index == 78.9
 
 
-async def test_pipeline_early_exit_on_safe(sample_equipment_log, correlation_id):
-    """RiskAssessmentAgent가 SAFE를 반환하면 perception 이후 단계는 실행되지 않아야 한다."""
-    safe_dict = {
-        "equipment_id": "M-12345",
-        "assessed_at": _NOW_ISO,
-        "risk_level": "SAFE",
-        "risk_factors": [],
-        "summary": "All sensors within normal range.",
-        "recommended_action": None,
-    }
+async def test_pipeline_early_exit_on_safe(correlation_id):
+    """rule engine이 SAFE를 반환하면 perception 이후 단계는 실행되지 않아야 한다."""
+    # All sensors comfortably within safe range — rule engine will return SAFE
+    safe_log = EquipmentLog(
+        equipment_id="M-12345",
+        timestamp=datetime(2026, 6, 3, 8, 0, 0, tzinfo=timezone.utc),
+        readings=[
+            SensorReading(sensor_id="air_temperature_k", unit="K", value=300.0),
+            SensorReading(sensor_id="process_temperature_k", unit="K", value=309.0),
+            SensorReading(sensor_id="rotational_speed_rpm", unit="rpm", value=2000.0),
+            SensorReading(sensor_id="torque_nm", unit="Nm", value=40.0),
+            SensorReading(sensor_id="tool_wear_min", unit="min", value=100.0),
+        ],
+        message="Normal operation",
+    )
 
-    embed_vec = [1.0] + [0.0] * 767
-    mock_col = _make_mock_col(embed_vec)
-    mock_vs = _make_mock_vectorstore()
-    mock_emb = MagicMock()
-    mock_emb.aembed_query = AsyncMock(return_value=embed_vec)
-
-    with patch.object(BaseAgent, "_invoke_chain", new_callable=AsyncMock, return_value=safe_dict), \
-         patch("agents.sop_rag_agent.get_sop_collection", return_value=mock_col), \
-         patch("agents.sop_rag_agent.get_langchain_vectorstore", return_value=mock_vs), \
-         patch("agents.hallucination_validator.get_sop_collection", return_value=mock_col), \
-         patch("agents.hallucination_validator.get_embeddings", return_value=mock_emb):
-        result = await ForgePipeline().run(sample_equipment_log, correlation_id)
+    result = await ForgePipeline().run(safe_log, correlation_id)
 
     assert result.risk_assessment is not None
     assert result.risk_assessment.risk_level == "SAFE"
@@ -164,7 +161,7 @@ async def test_pipeline_early_exit_on_safe(sample_equipment_log, correlation_id)
 
 async def test_pipeline_correlation_id_propagated(sample_equipment_log):
     cid = "unique-trace-id-xyz"
-    responses = iter([_RISK_ASSESSMENT_DICT, _PERCEPTION_DICT, _SOP_QUERY_DICT, _ACTION_PLAN_DICT])
+    responses = iter([_PERCEPTION_DICT, _SOP_QUERY_DICT, _ACTION_PLAN_DICT])
 
     embed_vec = [0.5] + [0.0] * 767
     mock_col = _make_mock_col(embed_vec)

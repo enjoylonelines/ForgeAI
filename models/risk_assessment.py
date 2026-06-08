@@ -19,6 +19,7 @@ class RiskAssessment(BaseModel):
     equipment_id: str
     assessed_at: datetime
     risk_level: Literal["SAFE", "WARNING", "CRITICAL"]
+    failure_type: Literal["TWF", "HDF", "PWF", "OSF", "NONE"] | None = None
     risk_factors: list[RiskFactor] = []
     summary: str
     recommended_action: str | None = None

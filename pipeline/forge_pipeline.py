@@ -11,11 +11,11 @@ from agents.action_plan_agent import ActionPlanAgent
 from agents.diagnostic_agent import DiagnosticAgent
 from agents.hallucination_validator import HallucinationValidatorAgent
 from agents.perception_agent import PerceptionAgent
-from agents.risk_assessment_agent import RiskAssessmentAgent
 from agents.sop_rag_agent import SOPRAGAgent
 from core.config import get_settings
 from core.langfuse_client import get_langfuse, set_current_trace
 from core.logging import get_logger
+from core.rule_engine import assess_risk
 from models.action_plan import ActionPlan
 from models.anomaly_report import AnomalyReport
 from models.diagnostic_result import DiagnosticResult
@@ -68,7 +68,6 @@ class _GraphState(BaseModel):
 
 class ForgePipeline:
     def __init__(self, model: str | None = None) -> None:
-        self._risk = RiskAssessmentAgent(model=model)
         self._perception = PerceptionAgent(model=model)
         self._diagnostic = DiagnosticAgent(model=model)
         self._sop_rag = SOPRAGAgent(model=model)
@@ -79,7 +78,14 @@ class ForgePipeline:
     # ── node implementations ───────────────────────────────────────────────────
 
     async def _node_risk_assessment(self, state: _GraphState) -> dict[str, Any]:
-        assessment = await self._risk.run(state.log, state.correlation_id)
+        assessment = assess_risk(state.log, state.correlation_id)
+        logger.info({
+            "event": "risk_assessment_complete",
+            "correlation_id": state.correlation_id,
+            "equipment_id": state.log.equipment_id,
+            "risk_level": assessment.risk_level,
+            "risk_factor_count": len(assessment.risk_factors),
+        })
         return {
             "risk_assessment": assessment,
             "stages_completed": state.stages_completed + ["risk_assessment"],
@@ -94,9 +100,12 @@ class ForgePipeline:
 
     async def _node_diagnostic_and_sop_rag(self, state: _GraphState) -> dict[str, Any]:
         """Run diagnostic and SOP-RAG in parallel — both only need anomaly_report."""
+        failure_type = (
+            state.risk_assessment.failure_type if state.risk_assessment else None
+        )
         diagnostic_result, sop_ctx = await asyncio.gather(
             self._diagnostic.run(state.anomaly_report, state.correlation_id),
-            self._sop_rag.run(state.anomaly_report, state.correlation_id),
+            self._sop_rag.run(state.anomaly_report, failure_type, state.correlation_id),
         )
         return {
             "diagnostic_result": diagnostic_result,
@@ -105,12 +114,18 @@ class ForgePipeline:
         }
 
     async def _node_action_plan(self, state: _GraphState) -> dict[str, Any]:
+        failure_type = (
+            state.risk_assessment.failure_type
+            if state.risk_assessment
+            else None
+        )
         plan = await self._action_plan.run(
             state.anomaly_report,
             state.sop_context,
             state.correlation_id,
             previous_feedback=state.previous_feedback,
             retry_attempt=state.retry_count,
+            failure_type=failure_type,
         )
         return {
             "action_plan": plan,

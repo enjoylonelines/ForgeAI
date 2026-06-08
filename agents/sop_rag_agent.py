@@ -23,6 +23,7 @@ class SOPRAGAgent(BaseAgent):
     async def run(
         self,
         anomaly_report: AnomalyReport,
+        failure_type: str | None = None,
         correlation_id: str | None = None,
     ) -> SOPContext:
         self._log("sop_rag_agent_start", correlation_id, equipment_id=anomaly_report.equipment_id)
@@ -52,12 +53,11 @@ class SOPRAGAgent(BaseAgent):
         n_results = min(settings.top_k_retrieval, collection.count())
         vectorstore = get_langchain_vectorstore()
 
-        failure_types = [
-            t.strip()
-            for t in anomaly_report.tags.get("failure_types", "").split(",")
-            if t.strip()
-        ]
-        filter_dict = {"failure_type": {"$in": failure_types}} if failure_types else None
+        filter_dict = (
+            {"failure_type": {"$in": [failure_type]}}
+            if failure_type and failure_type != "NONE"
+            else None
+        )
 
         docs_with_scores = vectorstore.similarity_search_with_relevance_scores(
             query, k=n_results, filter=filter_dict
