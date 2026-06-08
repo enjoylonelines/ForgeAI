@@ -100,9 +100,12 @@ class ForgePipeline:
 
     async def _node_diagnostic_and_sop_rag(self, state: _GraphState) -> dict[str, Any]:
         """Run diagnostic and SOP-RAG in parallel — both only need anomaly_report."""
+        failure_type = (
+            state.risk_assessment.failure_type if state.risk_assessment else None
+        )
         diagnostic_result, sop_ctx = await asyncio.gather(
             self._diagnostic.run(state.anomaly_report, state.correlation_id),
-            self._sop_rag.run(state.anomaly_report, state.correlation_id),
+            self._sop_rag.run(state.anomaly_report, failure_type, state.correlation_id),
         )
         return {
             "diagnostic_result": diagnostic_result,
@@ -111,12 +114,18 @@ class ForgePipeline:
         }
 
     async def _node_action_plan(self, state: _GraphState) -> dict[str, Any]:
+        failure_type = (
+            state.risk_assessment.failure_type
+            if state.risk_assessment
+            else None
+        )
         plan = await self._action_plan.run(
             state.anomaly_report,
             state.sop_context,
             state.correlation_id,
             previous_feedback=state.previous_feedback,
             retry_attempt=state.retry_count,
+            failure_type=failure_type,
         )
         return {
             "action_plan": plan,

@@ -25,12 +25,14 @@ class ActionPlanAgent(BaseAgent):
         correlation_id: str | None = None,
         previous_feedback: str | None = None,
         retry_attempt: int = 0,
+        failure_type: str | None = None,
     ) -> ActionPlan:
         self._log(
             "action_plan_agent_start",
             correlation_id,
             equipment_id=anomaly_report.equipment_id,
             retry_attempt=retry_attempt,
+            failure_type=failure_type,
         )
 
         chunks_data = [c.model_dump() for c in sop_context.chunks]
@@ -39,6 +41,7 @@ class ActionPlanAgent(BaseAgent):
             chunks_data,
             previous_feedback=previous_feedback,
             retry_attempt=retry_attempt,
+            failure_type=failure_type,
         )
         try:
             data = await self._invoke_chain(user_msg, correlation_id)

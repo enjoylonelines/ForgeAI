@@ -10,6 +10,7 @@ from core.rule_engine import (
     _TOOL_WEAR_WARNING_THRESHOLD,
     _WARNING_UTILIZATION,
     assess_risk,
+    classify_failure_type,
 )
 from models.equipment_log import EquipmentLog, SensorReading
 
@@ -132,3 +133,81 @@ def test_correlation_id_none_allowed():
     log = _make_log(("air_temperature_k", 300.0))
     result = assess_risk(log)
     assert result.correlation_id is None
+
+
+# ── failure_type classification ────────────────────────────────────────────────
+
+def test_classify_twf():
+    log = _make_log(("tool_wear_min", 201.0))
+    assert classify_failure_type(log) == "TWF"
+
+
+def test_classify_hdf():
+    # process_temp - air_temp = 7.0 < 8.6, rpm = 1300 < 1380
+    log = _make_log(
+        ("air_temperature_k", 300.0),
+        ("process_temperature_k", 307.0),
+        ("rotational_speed_rpm", 1300.0),
+    )
+    assert classify_failure_type(log) == "HDF"
+
+
+def test_classify_pwf_underpowered():
+    # power = 10 Nm × (500 rpm × 2π/60) = 10 × 52.36 = 523.6 W < 3500 W
+    log = _make_log(
+        ("torque_nm", 10.0),
+        ("rotational_speed_rpm", 500.0),
+    )
+    assert classify_failure_type(log) == "PWF"
+
+
+def test_classify_pwf_overpowered():
+    # power = 70 Nm × (1500 rpm × 2π/60) = 70 × 157.08 = 10996 W > 9000 W
+    log = _make_log(
+        ("torque_nm", 70.0),
+        ("rotational_speed_rpm", 1500.0),
+    )
+    assert classify_failure_type(log) == "PWF"
+
+
+def test_classify_osf():
+    # tool_wear=150, torque=80 → 150×80=12000 > 11000; no TWF (150≤200), no HDF/PWF sensors
+    log = _make_log(
+        ("tool_wear_min", 150.0),
+        ("torque_nm", 80.0),
+    )
+    assert classify_failure_type(log) == "OSF"
+
+
+def test_classify_none():
+    log = _make_log(
+        ("air_temperature_k", 300.0),
+        ("process_temperature_k", 309.0),
+        ("rotational_speed_rpm", 2000.0),
+        ("torque_nm", 40.0),
+        ("tool_wear_min", 100.0),
+    )
+    assert classify_failure_type(log) == "NONE"
+
+
+def test_classify_twf_priority_over_osf():
+    # tool_wear=210 (>200 → TWF), torque=80 → 210×80=16800 (also OSF) — TWF wins
+    log = _make_log(
+        ("tool_wear_min", 210.0),
+        ("torque_nm", 80.0),
+    )
+    assert classify_failure_type(log) == "TWF"
+
+
+def test_assess_risk_attaches_failure_type():
+    # WARNING → failure_type should be classified (not NONE)
+    log = _make_log(("tool_wear_min", 201.0))
+    result = assess_risk(log)
+    assert result.failure_type == "TWF"
+
+
+def test_assess_risk_safe_returns_none_failure_type():
+    log = _make_log(("tool_wear_min", 100.0))
+    result = assess_risk(log)
+    assert result.risk_level == "SAFE"
+    assert result.failure_type == "NONE"
