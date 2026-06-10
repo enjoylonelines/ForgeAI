@@ -14,14 +14,16 @@ AI4I 2020 제조 설비 데이터를 기반으로 한 멀티에이전트 RAG 파
 
 ```
 START
-  └─ RiskAssessmentAgent        # 센서값 기반 위험도 판단 (SAFE / WARNING / CRITICAL)
-       ├─ SAFE → END            # early_exit: 이후 LLM 호출 4회 절약
-       └─ WARNING / CRITICAL
-            └─ PerceptionAgent  # 이상 감지 및 원인 분류
+  └─ rule_engine.assess_risk()            # 결정론적 위험도 판단 (LLM 미사용, 수ms)
+     + classify_failure_type()            # TWF | HDF | PWF | OSF | NONE 분류
+     (core/rule_engine.py)
+       ├─ SAFE → END                      # early_exit: 이후 LLM 호출 4회 절약
+       └─ WARNING / CRITICAL + failure_type
+            └─ PerceptionAgent            # 이상 감지 및 원인 분류
                  ├─ 이상 없음 → END
                  └─ 이상 있음
-                      └─ SOPRAGAgent          # ChromaDB에서 관련 SOP 조회
-                           └─ ActionPlanAgent  # 조치 계획 생성
+                      └─ SOPRAGAgent(failure_type)   # ChromaDB where 필터 직결 + 폴백
+                           └─ ActionPlanAgent(failure_type)  # failure_type별 addendum 주입
                                 └─ HallucinationValidatorAgent  # 근거 검증
                                      ├─ APPROVE / REVIEW → END
                                      └─ REJECT → ActionPlanAgent (재시도, 최대 2회)
@@ -29,12 +31,12 @@ START
 
 ### 각 에이전트 역할
 
-| 에이전트 | 역할 | 모델 호출 |
+| 에이전트 / 컴포넌트 | 역할 | 모델 호출 |
 |---------|------|---------|
-| RiskAssessmentAgent | 센서 임계값 기반 위험도 분류, SAFE면 즉시 종료 | 1회 |
+| rule_engine (assess_risk + classify_failure_type) | 센서 임계값 기반 결정론적 위험도 분류 + failure_type 분류, SAFE면 즉시 종료 | **0회** (결정적) |
 | PerceptionAgent | 이상 패턴 분석, 고장 유형 추론 | 1회 |
-| SOPRAGAgent | ChromaDB 벡터 검색, 관련 SOP 청크 추출 | 0회 (임베딩만) |
-| ActionPlanAgent | SOP 기반 조치 계획 생성 | 1회 (재시도 시 추가) |
+| SOPRAGAgent | ChromaDB 벡터 검색, failure_type where 필터 직결 + 결과 부족 시 폴백 | 0회 (임베딩만) |
+| ActionPlanAgent | SOP 기반 조치 계획 생성, failure_type별 전용 컨텍스트 addendum 주입 | 1회 (재시도 시 추가) |
 | HallucinationValidatorAgent | 코사인 유사도로 근거 검증 | 1회 |
 
 ---
@@ -45,13 +47,15 @@ START
 
 ```
 센서 row
-  └─ RiskAssessmentAgent (LLM, ~0.3s)
-       ├─ SAFE (96.6%) → early_exit        ← 1단계: 필터
-       └─ WARNING/CRITICAL (3.4%) → 풀 파이프라인 (~4s)  ← 2단계: 심층 분석
+  └─ rule_engine.assess_risk() + classify_failure_type() (~1ms, LLM 미사용)
+       ├─ SAFE (96.6%) → early_exit              ← 1단계: 결정론적 필터
+       └─ WARNING/CRITICAL + failure_type (3.4%)
+            └─ 풀 LLM 파이프라인 (~4s)           ← 2단계: 심층 분석
 ```
 
-RiskAssessmentAgent가 1단계 필터 역할을 수행한다. AI4I 데이터 기준 96.6%의 row가 SAFE로
-early_exit되어 나머지 에이전트 호출을 생략한다.
+`core/rule_engine.py`의 `assess_risk()` + `classify_failure_type()`이 1단계 필터 역할을 수행한다.
+AI4I 데이터 기준 96.6%의 row가 SAFE로 early_exit되어 나머지 에이전트 호출을 생략한다.
+`failure_type`(TWF/HDF/PWF/OSF/NONE)은 이 단계에서 결정되어 SOPRAGAgent와 ActionPlanAgent로 전달된다.
 
 ### 프로덕션에서의 동등 구조
 
@@ -68,31 +72,28 @@ early_exit되어 나머지 에이전트 호출을 생략한다.
                              └─ 분석 결과 → DB / 대시보드
 ```
 
-**Rule engine 구현 예시 (Python):**
+**Rule engine 구현 (`core/rule_engine.py`):**
 
 ```python
-THRESHOLDS = {
-    "tool_wear_min":        (">=", 200),
-    "rotational_speed_rpm": (">=", 2800),
-    "torque_nm":            (">=", 70),
-    "air_temperature_k":    (">=", 310),
-}
+# assess_risk(): 센서 utilization % 기반 SAFE / WARNING / CRITICAL 결정 (LLM 미사용)
+# classify_failure_type(): AI4I 2020 조건식으로 TWF/HDF/PWF/OSF/NONE 결정론적 분류
+#   - TWF: tool_wear_min > 200
+#   - HDF: (process_temp - air_temp) < 8.6 K AND rpm < 1380
+#   - PWF: spindle_power < 3500 W OR > 9000 W
+#   - OSF: tool_wear_min × torque_nm > 11000
+#   - NONE: 위 조건 미해당
 
-def rule_engine(log: EquipmentLog) -> str:
-    for r in log.readings:
-        op, limit = THRESHOLDS.get(r.sensor_id, (None, None))
-        if op and r.value >= limit:
-            return "WARNING"
-    return "SAFE"
+risk = assess_risk(log)              # RiskAssessment (risk_level + failure_type + risk_factors)
+# failure_type은 assess_risk() 내부에서 classify_failure_type()을 호출해 함께 반환
 ```
 
-Kafka 없이 간소화하면 rule_engine → SAFE: 스킵, WARNING: `/analyze` 호출로 동일한 구조를 재현할 수 있다.
+Kafka 없이 간소화하면 rule_engine → SAFE: 스킵, WARNING/CRITICAL: `/analyze` 호출로 동일한 구조를 재현할 수 있다.
 
 **이 프로젝트와 프로덕션의 차이:**
 
 | 항목 | 이 프로젝트 | 프로덕션 |
 |------|------------|---------|
-| 1단계 필터 | RiskAssessmentAgent (LLM, ~0.3s) | Rule Engine (수ms) |
+| 1단계 필터 | rule_engine.assess_risk() (~1ms, 결정적) | Rule Engine / Flink Streaming (수ms) |
 | 스트리밍 버퍼 | 없음 (순차 대기) | Kafka topic |
 | LLM 처리 | 동기 (row 대기) | 비동기 Worker Pool |
 | 데이터 | CSV replay | 실시간 센서 스트림 |

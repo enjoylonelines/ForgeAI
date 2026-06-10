@@ -15,11 +15,13 @@
 EquipmentLog (센서 데이터)
         │
         ▼
-┌──────────────────────────┐
-│   RiskAssessmentAgent    │  AI4I 센서 범위 기반 위험 등급 사전 평가
-│   (Prevention Layer)     │  SAFE → 조기 종료 (LLM 4콜 절약)
-└──────────────────────────┘
-        │  WARNING / CRITICAL
+┌──────────────────────────────────────────┐
+│   rule_engine.assess_risk()              │  AI4I 센서 범위 기반 위험 등급 결정론적 판단
+│   + classify_failure_type()             │  LLM 미사용, 수ms 처리
+│   (core/rule_engine.py)                 │  SAFE → 조기 종료 (LLM 4콜 절약)
+│                                          │  failure_type: TWF | HDF | PWF | OSF | NONE
+└──────────────────────────────────────────┘
+        │  WARNING / CRITICAL + failure_type
         ▼
 ┌──────────────────────────┐
 │    PerceptionAgent       │  센서 값 분석, 이상 감지, AnomalyReport 생성
@@ -33,14 +35,17 @@ EquipmentLog (센서 데이터)
 └──────────────────────────┘
         │
         ▼
-┌──────────────────────────┐
-│     SOPRAGAgent          │  ChromaDB 벡터 검색, failure_type 메타데이터 필터 + 폴백
-└──────────────────────────┘
-        │
+┌──────────────────────────────────────────┐
+│     SOPRAGAgent                          │  ChromaDB 벡터 검색
+│                                          │  failure_type where 필터 직결 + 폴백
+└──────────────────────────────────────────┘
+        │ failure_type 전달
         ▼
-┌──────────────────────────┐
-│    ActionPlanAgent       │  SOP 기반 단계별 조치 계획 생성, 실패 시 피드백 반영 재시도
-└──────────────────────────┘
+┌──────────────────────────────────────────┐
+│    ActionPlanAgent                       │  SOP 기반 단계별 조치 계획 생성
+│                                          │  failure_type별 전용 컨텍스트 addendum 주입
+│                                          │  실패 시 피드백 반영 재시도
+└──────────────────────────────────────────┘
         │
         ▼
 ┌──────────────────────────┐
@@ -76,11 +81,11 @@ ControlPlanResult
 **LangGraph 그래프 조건 분기:**
 
 ```
-START → risk_assessment
+START → risk_assessment (rule_engine: assess_risk + classify_failure_type)
   ├── SAFE ──────────────────────────────────────────────────────▶ END (early exit)
-  └── WARNING/CRITICAL → perception
+  └── WARNING/CRITICAL + failure_type → perception
         ├── no anomaly ───────────────────────────────────────────▶ END
-        └── anomaly → diagnostic → sop_rag → action_plan → validator
+        └── anomaly → diagnostic → sop_rag(failure_type) → action_plan(failure_type) → validator
               ├── APPROVE/REVIEW ────────────────────────────────▶ END
               └── REJECT & retry < MAX ──────────────────────────▶ action_plan
 ```
@@ -389,11 +394,11 @@ tests/test_*.py                     # 에이전트별 단위 테스트
 ```
 ForgeAI/
 ├── agents/
-│   ├── risk_assessment_agent.py   # 예방 레이어: AI4I 센서 범위 기반 위험 평가
+│   ├── risk_assessment_agent.py   # 예방 레이어: rule_engine.assess_risk() wrapper
 │   ├── perception_agent.py        # 이상 감지, AnomalyReport 생성
 │   ├── diagnostic_agent.py        # Tool Use / ReAct (bind_tools + 수동 루프)
-│   ├── sop_rag_agent.py           # ChromaDB 검색 + failure_type 필터
-│   ├── action_plan_agent.py       # SOP 기반 조치 계획, 재시도 피드백 반영
+│   ├── sop_rag_agent.py           # ChromaDB 검색 + failure_type where 필터 직결
+│   ├── action_plan_agent.py       # SOP 기반 조치 계획, failure_type addendum, 재시도 피드백 반영
 │   ├── hallucination_validator.py # 임베딩 코사인 유사도 검증
 │   └── intent_extraction_agent.py # 자연어 → 구조화 의도 추출
 ├── pipeline/
@@ -407,7 +412,9 @@ ForgeAI/
 │   └── sensor_tools.py            # LangChain @tool 3종: 임계값/위험지수/알림
 ├── api/
 │   └── routes.py                  # FastAPI 엔드포인트 4종
-├── core/                          # 설정, 로깅, Ollama/Langfuse 클라이언트
+├── core/
+│   ├── rule_engine.py             # 결정론적 위험 평가: assess_risk() + classify_failure_type()
+│   └── ...                        # 설정, 로깅, Ollama/Langfuse 클라이언트
 ├── data/
 │   ├── chroma/                    # ChromaDB 영구 저장소
 │   └── sop_docs/                  # SOP 문서 5종 (TWF/HDF/PWF/OSF/RNF)
