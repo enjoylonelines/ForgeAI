@@ -3,8 +3,11 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
+from core.logging import get_logger
 from models.equipment_log import EquipmentLog
 from models.risk_assessment import RiskAssessment, RiskFactor
+
+_logger = get_logger(__name__)
 
 _SENSOR_RANGES: dict[str, dict[str, float]] = {
     "air_temperature_k":     {"min": 295.0, "max": 304.0},
@@ -29,11 +32,11 @@ _PWF_POWER_MAX_W = 9000.0         # power > 9000 W → PWF
 _OSF_STRAIN_THRESHOLD = 11000.0   # tool_wear_min × torque_nm > 11000 → OSF (L-type conservative)
 
 
-def classify_failure_type(log: EquipmentLog) -> str:
-    """Deterministically classify failure type from sensor readings.
+def get_all_triggered_failure_types(log: EquipmentLog) -> list[str]:
+    """트리거된 모든 고장 모드를 우선순위 순서로 반환한다.
 
-    Priority: TWF > HDF > PWF > OSF > NONE.
-    Returns one of: "TWF", "HDF", "PWF", "OSF", "NONE".
+    단일 라벨 한계를 로그로 드러내기 위해 사용.
+    복수 조건이 동시에 참일 때 어느 것이 숨겨지는지 가시화한다.
     """
     readings = {r.sensor_id: r.value for r in log.readings}
 
@@ -43,23 +46,46 @@ def classify_failure_type(log: EquipmentLog) -> str:
     rpm = readings.get("rotational_speed_rpm")
     torque = readings.get("torque_nm")
 
-    if tool_wear is not None and tool_wear > _TWF_TOOL_WEAR_MIN:
-        return "TWF"
-
-    if air_temp is not None and process_temp is not None and rpm is not None:
-        if (process_temp - air_temp) < _HDF_TEMP_DIFF_MIN and rpm < _HDF_RPM_MAX:
-            return "HDF"
+    triggered: list[str] = []
 
     if torque is not None and rpm is not None:
         power_w = torque * (rpm * 2 * math.pi / 60)
         if power_w < _PWF_POWER_MIN_W or power_w > _PWF_POWER_MAX_W:
-            return "PWF"
+            triggered.append("PWF")
 
     if tool_wear is not None and torque is not None:
         if tool_wear * torque > _OSF_STRAIN_THRESHOLD:
-            return "OSF"
+            triggered.append("OSF")
 
-    return "NONE"
+    if air_temp is not None and process_temp is not None and rpm is not None:
+        if (process_temp - air_temp) < _HDF_TEMP_DIFF_MIN and rpm < _HDF_RPM_MAX:
+            triggered.append("HDF")
+
+    if tool_wear is not None and tool_wear > _TWF_TOOL_WEAR_MIN:
+        triggered.append("TWF")
+
+    return triggered
+
+
+def classify_failure_type(log: EquipmentLog) -> str:
+    """안전 트리아지 우선순위로 단일 failure_type을 반환한다.
+
+    Priority order — 안전 심각도(triage) 기준, 진단 정확도 아님:
+      1. PWF — 과전력(화재·소손) 또는 저전력(스톨·잼): 전기/화재 즉각 위험
+      2. OSF — 공구·홀더 급파단, 공작물 비산: 물리적 부상 위험
+      3. HDF — 열 누적 → 베어링 소손: 진행 느리나 화재로 전환 가능
+      4. TWF — 점진적 마모: 가장 예측 가능, 대응 시간 여유 있음
+      5. NONE — 고장 조건 없음
+
+    트레이드오프:
+      복수 조건이 동시에 참일 때 높은 순위가 낮은 순위를 가린다.
+      (예: 높은 토크+rpm → PWF와 OSF 동시 충족 → PWF 반환, OSF 숨겨짐)
+      이는 의도된 설계다 — 현장에서는 가장 위험한 것부터 처치한다.
+      숨겨진 고장 모드는 triggered_failure_types 필드에 보존된다.
+      다중 라벨 지원은 다음 단계. docs/decisions.md 참조.
+    """
+    triggered = get_all_triggered_failure_types(log)
+    return triggered[0] if triggered else "NONE"
 
 
 def _classify(sensor_id: str, value: float, util_pct: float) -> str | None:
@@ -122,13 +148,27 @@ def assess_risk(log: EquipmentLog, correlation_id: str | None = None) -> RiskAss
         risk_level = "SAFE"
         all_factors = []
 
-    failure_type = classify_failure_type(log) if risk_level != "SAFE" else "NONE"
+    triggered = get_all_triggered_failure_types(log)
+    failure_type = triggered[0] if triggered else "NONE"
+    if failure_type != "NONE" and risk_level == "SAFE":
+        risk_level = "WARNING"
+
+    if len(triggered) > 1:
+        _logger.warning({
+            "event": "multiple_failure_types_triggered",
+            "correlation_id": correlation_id,
+            "equipment_id": log.equipment_id,
+            "selected": failure_type,
+            "suppressed": triggered[1:],
+            "note": "single-label triage — suppressed modes logged for diagnostic review",
+        })
 
     return RiskAssessment(
         equipment_id=log.equipment_id,
         assessed_at=datetime.now(timezone.utc),
         risk_level=risk_level,
         failure_type=failure_type,
+        triggered_failure_types=triggered,
         risk_factors=all_factors,
         summary=_make_summary(risk_level, all_factors),
         recommended_action=_make_action(risk_level),

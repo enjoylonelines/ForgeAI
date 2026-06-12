@@ -20,6 +20,7 @@ class RiskAssessment(BaseModel):
     assessed_at: datetime
     risk_level: Literal["SAFE", "WARNING", "CRITICAL"]
     failure_type: Literal["TWF", "HDF", "PWF", "OSF", "NONE"] | None = None
+    triggered_failure_types: list[str] = []  # 동시에 참인 모든 고장 모드 (단일 라벨 한계 가시화)
     risk_factors: list[RiskFactor] = []
     summary: str
     recommended_action: str | None = None

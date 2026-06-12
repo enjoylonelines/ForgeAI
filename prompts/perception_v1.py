@@ -42,11 +42,8 @@ AI4I 2020 Predictive Maintenance normal operating ranges (reference):
 - Torque: 3.8–76.6 Nm (mean ~40)
 - Tool wear: 0–253 min (>200 min HIGH risk)
 
-Failure type keywords to include in description when relevant:
-- TWF: tool wear failure (tool_wear > 200 min)
-- HDF: heat dissipation failure (air_temp - process_temp < 8.6 K AND rotational_speed < 1380 rpm)
-- PWF: power failure (torque × rotational_speed outside 3500–9000 W range)
-- OSF: overstrain failure (tool_wear × torque exceeds type-based threshold)
+Your role is anomaly detection only — report WHAT the sensor values are and HOW far they deviate.
+Failure type classification (TWF/HDF/PWF/OSF) is handled downstream by the rule engine, not here.
 """
 
 

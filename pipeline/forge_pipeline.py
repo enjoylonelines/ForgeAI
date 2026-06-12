@@ -86,13 +86,48 @@ class ForgePipeline:
             "risk_level": assessment.risk_level,
             "risk_factor_count": len(assessment.risk_factors),
         })
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "01_분류(rule_engine)",
+            "correlation_id": state.correlation_id,
+            "failure_type": assessment.failure_type,
+            "triggered": assessment.triggered_failure_types,
+            "risk_level": assessment.risk_level,
+        })
         return {
             "risk_assessment": assessment,
             "stages_completed": state.stages_completed + ["risk_assessment"],
         }
 
     async def _node_perception(self, state: _GraphState) -> dict[str, Any]:
-        report = await self._perception.run(state.log, state.correlation_id)
+        try:
+            report = await self._perception.run(state.log, state.correlation_id)
+        except Exception as exc:
+            logger.warning({
+                "event": "node_perception_failed",
+                "correlation_id": state.correlation_id,
+                "equipment_id": state.log.equipment_id,
+                "error": str(exc),
+                "fallback": "has_anomaly=True (conservative)",
+            })
+            report = AnomalyReport(
+                equipment_id=state.log.equipment_id,
+                timestamp=state.log.timestamp,
+                has_anomaly=True,
+                anomalies=[],
+                summary="[PERCEPTION FAILED] Assuming anomaly present — manual inspection required.",
+                raw_log_snippet="",
+                correlation_id=state.correlation_id,
+                tags=state.log.tags,
+            )
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "02_이상탐지(perception)",
+            "correlation_id": state.correlation_id,
+            "has_anomaly": report.has_anomaly,
+            "anomaly_count": len(report.anomalies),
+            "summary": report.summary,
+        })
         return {
             "anomaly_report": report,
             "stages_completed": state.stages_completed + ["perception"],
@@ -103,10 +138,44 @@ class ForgePipeline:
         failure_type = (
             state.risk_assessment.failure_type if state.risk_assessment else None
         )
+        diagnostic_task = self._diagnostic.run(state.anomaly_report, state.correlation_id)
+        sop_rag_task = self._sop_rag.run(state.anomaly_report, failure_type, state.correlation_id)
+
         diagnostic_result, sop_ctx = await asyncio.gather(
-            self._diagnostic.run(state.anomaly_report, state.correlation_id),
-            self._sop_rag.run(state.anomaly_report, failure_type, state.correlation_id),
+            diagnostic_task, sop_rag_task, return_exceptions=True
         )
+
+        if isinstance(diagnostic_result, BaseException):
+            logger.warning({
+                "event": "node_diagnostic_failed",
+                "correlation_id": state.correlation_id,
+                "error": str(diagnostic_result),
+                "fallback": "diagnostic_result=None",
+            })
+            diagnostic_result = None
+
+        if isinstance(sop_ctx, BaseException):
+            logger.warning({
+                "event": "node_sop_rag_failed",
+                "correlation_id": state.correlation_id,
+                "error": str(sop_ctx),
+                "fallback": "empty SOPContext",
+            })
+            sop_ctx = SOPContext(
+                equipment_id=state.log.equipment_id,
+                query_used="[SOPRAGAgent failed]",
+                chunks=[],
+                correlation_id=state.correlation_id,
+            )
+
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "03_SOP검색(sop_rag)",
+            "correlation_id": state.correlation_id,
+            "query_used": sop_ctx.query_used,
+            "chunk_count": len(sop_ctx.chunks),
+            "top_chunk": sop_ctx.chunks[0].chunk_id if sop_ctx.chunks else None,
+        })
         return {
             "diagnostic_result": diagnostic_result,
             "sop_context": sop_ctx,
@@ -119,21 +188,74 @@ class ForgePipeline:
             if state.risk_assessment
             else None
         )
-        plan = await self._action_plan.run(
-            state.anomaly_report,
-            state.sop_context,
-            state.correlation_id,
-            previous_feedback=state.previous_feedback,
-            retry_attempt=state.retry_count,
-            failure_type=failure_type,
-        )
+        try:
+            plan = await self._action_plan.run(
+                state.anomaly_report,
+                state.sop_context,
+                state.correlation_id,
+                previous_feedback=state.previous_feedback,
+                retry_attempt=state.retry_count,
+                failure_type=failure_type,
+            )
+        except Exception as exc:
+            logger.warning({
+                "event": "node_action_plan_failed",
+                "correlation_id": state.correlation_id,
+                "equipment_id": state.log.equipment_id,
+                "error": str(exc),
+                "fallback": "empty ActionPlan",
+            })
+            plan = ActionPlan(
+                equipment_id=state.log.equipment_id,
+                generated_at=datetime.now(timezone.utc),
+                steps=[],
+                escalation_required=True,
+                escalation_reason="[ACTION PLAN FAILED] Manual intervention required.",
+                correlation_id=state.correlation_id,
+            )
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "04_행동계획(action_plan)",
+            "correlation_id": state.correlation_id,
+            "step_count": len(plan.steps),
+            "escalation_required": plan.escalation_required,
+            "steps": [s.action[:60] for s in plan.steps],
+        })
         return {
             "action_plan": plan,
             "stages_completed": state.stages_completed + ["action_plan"],
         }
 
     async def _node_validator(self, state: _GraphState) -> dict[str, Any]:
-        result = await self._validator.run(state.action_plan, state.sop_context, state.correlation_id)
+        try:
+            result = await self._validator.run(state.action_plan, state.sop_context, state.correlation_id)
+        except Exception as exc:
+            logger.warning({
+                "event": "node_validator_failed",
+                "correlation_id": state.correlation_id,
+                "equipment_id": state.log.equipment_id,
+                "error": str(exc),
+                "fallback": "recommendation=REVIEW",
+            })
+            result = ValidationResult(
+                equipment_id=state.log.equipment_id,
+                validated_at=datetime.now(timezone.utc),
+                overall_grounding_score=0.0,
+                is_valid=False,
+                step_validations=[],
+                ungrounded_steps=[],
+                recommendation="REVIEW",
+                explanation="[VALIDATOR FAILED] Could not validate plan — manual review required.",
+                correlation_id=state.correlation_id,
+            )
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "05_검증(validator)",
+            "correlation_id": state.correlation_id,
+            "recommendation": result.recommendation,
+            "grounding_score": result.overall_grounding_score,
+            "ungrounded_steps": result.ungrounded_steps,
+        })
         updates: dict[str, Any] = {
             "validation_result": result,
             "stages_completed": state.stages_completed + ["validator"],

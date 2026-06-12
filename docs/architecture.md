@@ -10,6 +10,35 @@ AI4I 2020 제조 설비 데이터를 기반으로 한 멀티에이전트 RAG 파
 
 ---
 
+## 정형 ML 베이스라인 — 하이브리드 설계의 정량적 근거
+
+**스크립트:** `scripts/baseline_classifier.py` | **데이터:** AI4I 2020 (10,000행, test_size=0.2, random_state=42)
+
+### 클래스 불균형
+
+고장 339/10,000 = 3.39%, 정상:고장 ≈ 28.5:1.  
+Accuracy를 헤드라인 지표로 쓰면 "항상 정상"을 찍는 Dummy 모델도 96.6%가 나오지만 고장 recall은 0이다.
+
+### 결과 (헤드라인 지표: PR-AUC + 고장 클래스 recall/precision/F1)
+
+| 모델 | PR-AUC | 고장 Recall | 고장 Precision | 고장 F1 |
+|------|--------|------------|---------------|---------|
+| Dummy (항상 정상) | 0.034 | 0.000 | 0.000 | 0.000 |
+| Random Forest (`class_weight='balanced'`) | 0.783 | 0.721 | 0.766 | 0.742 |
+| **XGBoost** (`scale_pos_weight=28.52`) | **0.830** | **0.779** | **0.747** | **0.763** |
+
+**피처(6개):** Type(L/M/H), Air temp, Process temp, Rotational speed, Torque, Tool wear  
+**제외:** UDI, Product ID (식별자), TWF/HDF/PWF/OSF/RNF (타깃 파생 → 데이터 누수)  
+**피처 엔지니어링·하이퍼파라미터 튜닝 없음** — raw 베이스라인 수치
+
+### 정형 분류의 한계와 LLM 층의 필요성
+
+이 분류기의 baseline 성능은 Random Forest 기준 PR-AUC 0.78, 고장 recall 0.72, precision 0.77이었고, XGBoost는 PR-AUC 0.83, recall 0.78, precision 0.75로 비슷한 수준이었다.  
+RNF(랜덤 고장)는 정의상 센서 패턴과 무관하게 발생하므로 정형 분류로는 예측이 불가능하며, 라벨 자체에도 'Machine failure=1인데 모드 플래그가 모두 0인' 불일치가 일부 존재해 정형 분류만으로는 여기까지가 한계였다.  
+그래서 센서 이상을 탐지하는 정형 모델 위에 고장 원인 추론·운전자 설명을 담당하는 LLM 에이전트 층을 얹는 하이브리드 아키텍처를 채택했다.
+
+---
+
 ## 에이전트 파이프라인 (LangGraph StateGraph)
 
 ```

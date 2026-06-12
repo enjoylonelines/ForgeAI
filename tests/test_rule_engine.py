@@ -190,13 +190,14 @@ def test_classify_none():
     assert classify_failure_type(log) == "NONE"
 
 
-def test_classify_twf_priority_over_osf():
-    # tool_wear=210 (>200 → TWF), torque=80 → 210×80=16800 (also OSF) — TWF wins
+def test_classify_osf_priority_over_twf():
+    # tool_wear=210 (>200 → TWF), torque=80 → 210×80=16800 (also OSF)
+    # 우선순위: OSF(물리 부상 위험) > TWF(점진적 마모) — OSF wins
     log = _make_log(
         ("tool_wear_min", 210.0),
         ("torque_nm", 80.0),
     )
-    assert classify_failure_type(log) == "TWF"
+    assert classify_failure_type(log) == "OSF"
 
 
 def test_assess_risk_attaches_failure_type():

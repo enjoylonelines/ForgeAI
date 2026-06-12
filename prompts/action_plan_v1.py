@@ -34,6 +34,7 @@ Rules:
 - Priority: P1=immediate safety/production stop risk, P2=within 1 hour, P3=within shift
 - escalation_required=true if any anomaly severity is CRITICAL or if power/safety systems are involved
 - Generate 3–7 steps ordered by urgency
+- For each step's action text, use key phrases and terminology VERBATIM from the cited SOP chunk — do not paraphrase when exact wording is available
 """
 
 
@@ -82,7 +83,7 @@ def format_user_message(
     failure_type: str | None = None,
 ) -> str:
     chunks_text = "\n".join(
-        f"[chunk_id: {c['chunk_id']}] {c['text'][:400]}"
+        f"[chunk_id: {c['chunk_id']}] {c['text'][:600]}"
         for c in sop_chunks
     )
     base = ""
