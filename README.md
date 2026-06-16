@@ -115,6 +115,8 @@ EquipmentLog (센서 5종 + 태그)
 | [ADR-005](docs/adr/ADR-005-classical-ml-vs-llm-separation.md) | 예측은 고전 ML / LLM은 RCA·운영 레이어 분리 | 채택 |
 | [ADR-006](docs/adr/ADR-006-rag-source-vector-separation.md) | RAG 원본 문서와 벡터 분리로 임베딩 모델 교체 흡수 | 채택 |
 | [ADR-007](docs/adr/ADR-007-provenance-lineage-structure.md) | Provenance/lineage 기록 구조 | 검토중 |
+| [ADR-008](docs/adr/ADR-008-agent-decision-stability.md) | 에이전트 결정 안정성 (비결정성 제어 방식) | 검토중 |
+| [ADR-009](docs/adr/ADR-009-agent-authority-boundary.md) | 에이전트 권한 경계 및 에스컬레이션 정책 | 검토중 |
 | [ADR-010](docs/adr/ADR-010-model-comparison-protocol.md) | 모델 비교·선택 프로토콜 (동일 조건 원칙) | 채택 |
 | [ADR-011](docs/adr/ADR-011-deployment-gate.md) | 배포 게이트(승격 기준) 정의 | 채택 |
 | [ADR-012](docs/adr/ADR-012-data-validation-gate.md) | 데이터 검증 단계 (서빙 전 품질 게이트) | 검토중 |
@@ -305,7 +307,93 @@ data/chroma/                ← 파생물 (ChromaDB 벡터)
 
 ---
 
-## 8. DataOps & Provenance
+## 8. 에이전트 운영 안정성 (Agent Operational Reliability)
+
+> **핵심 주장:** LLM 에이전트는 비결정적이다. 그걸 제조 운영에 올릴 수 있게 만든 안정성 장치들.
+
+제조 현업이 AI 에이전트를 불신하는 지점은 명확하다: "같은 이상이 들어와도 다른 판단이 나올 수 있다."  
+이 시스템은 그 비결정성을 부정하지 않는다. 대신 네 층의 안정성 장치로 제어 가능한 범위 안에 묶는다.
+
+---
+
+### 기둥 1: 결정 안정성 (비결정성 대응)
+
+**위협:** 동일한 센서 이상이 들어와도 에이전트가 다른 분기·조치를 출력할 수 있다.  
+온도(temperature)가 높거나 시드가 없으면 LLM 출력이 호출마다 달라진다.
+
+**대응:**
+- **온도 고정 (`temperature=0`):** 샘플링 분산을 제거해 동일 입력 → 동일 출력을 최대화
+- **구조화 출력:** ActionPlan을 Pydantic 스키마로 강제해 자유 텍스트 변동을 차단
+- **분기 규칙화:** `risk_level` / `failure_type` 판정은 rule engine이 결정론적으로 수행 — LLM에 위임하지 않음 (ADR-005)
+- **최대 루프 횟수 고정:** DiagnosticAgent tool use 최대 5회, ActionPlanAgent 재시도 최대 3회
+
+**측정:** 동일 입력 반복 실행 일관성 `[___]%` → 레이어3 / ADR-008 참조
+
+---
+
+### 기둥 2: 권한 경계 (Governance)
+
+**위협:** 에이전트가 해선 안 될 자동 조치를 실행한다. 오탐으로 라인이 정지되거나,  
+grounding_score가 낮은 조치계획이 그대로 현장에 내려간다.
+
+**대응:**
+- **신뢰도 임계 기반 자동 분기:**
+
+  ```
+  grounding_score ≥ 0.85  → APPROVE  (자동 전달 가능 범위)
+  grounding_score ≥ 0.60  → REVIEW   (사람 확인 에스컬레이션)
+  grounding_score < 0.60  → REJECT   → ActionPlanAgent 재시도 (최대 3회)
+  재시도 소진 후 REJECT   → 운영자에게 에스컬레이션, 자동 조치 차단
+  ```
+
+- **C++ 어댑터 dry-run 강제:** 산업제어 명령 실행 레이어는 live write가 기본 차단
+- **에스컬레이션 로그:** 모든 REVIEW/REJECT 케이스는 correlation_id와 함께 기록
+
+**측정:** 자동화율(APPROVE) `[___]%` / 에스컬레이션(REVIEW+REJECT) `[___]%` → 레이어3 / ADR-009 참조
+
+---
+
+### 기둥 3: 추적·감사 (Provenance)
+
+**위협:** "왜 그 판단을 했는가"를 사후에 재구성할 수 없으면 사고 조사·규제 감사가 불가능하다.  
+운전자가 조치계획을 따르다 이상이 생겼을 때 책임 소재를 추적할 수 없다.
+
+**대응:** 입력 센서값부터 최종 조치계획까지 전 단계를 연결하는 lineage 구조 (ADR-007):
+
+```
+EquipmentLog (센서값 + 타임스탬프)
+  → RiskAssessment (risk_level, failure_type, 초과 임계값)
+    → SOPContext (검색된 chunk_id, 문서명, 페이지)
+      → ActionPlan.steps[N].sop_reference (= chunk_id)
+        → ValidationResult.step_validations[N].grounding_score
+          + correlation_id → Langfuse 스팬
+```
+
+**측정:** "결과에서 원본 SOP 청크까지 역추적 가능" 비율 `[___]%` → 레이어3 / ADR-007 참조
+
+현재 추적 가능한 것과 불가능한 것의 상세는 → [9. DataOps & Provenance](#9-dataops--provenance)
+
+---
+
+### 기둥 4: 입력·모델 안정성 (서빙 전제)
+
+**위협:** 오염된 센서 데이터 또는 조용히 교체된 모델이 에이전트 전체 출력을 망친다.  
+에이전트 자체는 정상이어도 입력이 이미 쓰레기면 판단을 신뢰할 수 없다.
+
+**대응 (세 겹의 방어선):**
+
+| 방어선 | 역할 | ADR |
+|--------|------|-----|
+| 데이터 검증 게이트 | 스키마·범위·결측 — 오염 데이터의 파이프라인 진입 차단 | ADR-012 |
+| 배포 승격 기준 | PR-AUC·Recall·ECE·재현성 — 열등한 모델의 서빙 진입 차단 | ADR-011 |
+| training-serving skew 방지 | 학습/서빙 전처리 일치 — 조용한 성능 괴리 차단 | ADR-013 |
+
+**측정:** 각 게이트의 통과 기준값 및 차단율 → 레이어3 참조  
+상세 흐름 → [10. 데이터 수집·분석 파이프라인](#10-데이터-수집분석-파이프라인-서비스-관점)
+
+---
+
+## 9. DataOps & Provenance
 
 ### 현재 구현된 lineage 구조
 
@@ -333,7 +421,7 @@ SOP 문서는 설비 도메인 지식의 명시적 자산이다.
 
 ---
 
-## 9. 데이터 수집·분석 파이프라인 (서비스 관점)
+## 10. 데이터 수집·분석 파이프라인 (서비스 관점)
 
 DataOps/8번 섹션이 "데이터 자산화 및 lineage 추적"을 다룬다면,  
 이 섹션은 **서비스로 데이터가 유입되어 예측기에 도달하기까지의 흐름**을 서술한다.
@@ -402,7 +490,7 @@ PipelineResult (JSON 응답 + lineage 로그)
 
 ---
 
-## 10. 한계 & 다음 단계
+## 11. 한계 & 다음 단계
 
 ### 현재 한계 (솔직하게)
 
@@ -426,7 +514,7 @@ PipelineResult (JSON 응답 + lineage 로그)
 
 ---
 
-## 11. 실행 방법
+## 12. 실행 방법
 
 ### 사전 요구사항
 
