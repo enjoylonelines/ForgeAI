@@ -38,7 +38,7 @@
 
 다음 순서로 모델을 비교·선택한다:
 
-1. **동일 조건 고정:** 데이터 분할(test_size=0.2, stratify=y, random_state=42), 전처리, 피처셋 동일
+1. **동일 조건 고정:** 데이터 분할(시간순 80/20, [ADR-002](ADR-002-time-based-split.md)), 전처리, 피처셋 동일. random_state=42는 모델 시드에만 적용
 2. **1차 비교:** PR-AUC — 임계값 독립적 지표로 후보 순위 결정
 3. **2차 비교:** threshold=0.5 기준 recall/precision/F1 — 운영 수준 차이 확인
 4. **3차 기준:** 해석가능성 · 추론비용 · 재학습 용이성 — 수치 우위가 없을 때 결정 인자
@@ -72,4 +72,4 @@
 | Random Forest | 0.783 | 0.721 | 0.766 | 탈락 |
 | XGBoost | **0.830** | **0.779** | **0.747** | **채택** |
 
-재현 명령: `uv run python scripts/baseline_classifier.py`
+재현 명령: `uv run python scripts/secom_baseline_classifier.py`
