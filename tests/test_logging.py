@@ -11,7 +11,7 @@ def formatter():
     return _JsonFormatter()
 
 
-def _make_record(msg, *args, level=logging.INFO):
+def _make_record(msg, args: tuple = (), level=logging.INFO):
     record = logging.LogRecord(
         name="test", level=level, pathname="", lineno=0,
         msg=msg, args=args, exc_info=None,
@@ -36,7 +36,7 @@ def test_str_log_unchanged(formatter):
 
 
 def test_str_log_with_args(formatter):
-    record = _make_record("value=%s", 99)
+    record = _make_record("value=%s", args=(99,))
     output = json.loads(formatter.format(record))
 
     assert output["message"] == "value=99"
