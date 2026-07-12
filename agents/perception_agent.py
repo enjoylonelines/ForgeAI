@@ -22,7 +22,13 @@ class PerceptionAgent(BaseAgent):
     ) -> AnomalyReport:
         self._log("perception_agent_start", correlation_id, equipment_id=log.equipment_id)
 
-        user_msg = prompt.format_user_message(log.model_dump(mode="json"))
+        observable = {
+            "equipment_id": log.equipment_id,
+            "timestamp": log.timestamp.isoformat(),
+            "log_level": log.log_level,
+            "readings": [r.model_dump() for r in log.readings],
+        }
+        user_msg = prompt.format_user_message(observable)
         try:
             data = await self._invoke_chain(user_msg, correlation_id)
             report = AnomalyReport.model_validate({**data, "correlation_id": correlation_id, "tags": log.tags})
