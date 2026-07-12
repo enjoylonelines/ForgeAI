@@ -24,8 +24,11 @@ from models.anomaly_report import AnomalyReport
 from models.diagnostic_result import DiagnosticResult
 from models.equipment_log import EquipmentLog
 from models.risk_assessment import RiskAssessment
+from models.routing import RoutingDecision, RoutingInput
 from models.sop_context import SOPContext
 from models.validation_result import ValidationResult
+from core.routing_rules import apply_routing_rules
+from control.bridge import execute_control_plan
 
 logger = get_logger(__name__)
 
@@ -45,6 +48,7 @@ class PipelineResult(BaseModel):
     sop_context: SOPContext | None = None
     action_plan: ActionPlan | None = None
     validation_result: ValidationResult | None = None
+    routing_decision: RoutingDecision | None = None
     metrics: PipelineMetrics = Field(default_factory=PipelineMetrics)
     pipeline_completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -65,6 +69,28 @@ class _GraphState(BaseModel):
     retry_count: int = 0
     previous_feedback: str | None = None
     stages_completed: list[str] = []
+    routing_decision: RoutingDecision | None = None
+
+
+def _apply_routing_bridge(decision: RoutingDecision, state: _GraphState) -> None:
+    """AUTO → dry-run 브릿지, ESCALATE → NOTIFY_SUPERVISOR 로그."""
+    if decision.route == "AUTO" and state.action_plan and state.action_plan.steps:
+        try:
+            execute_control_plan(state.action_plan, state.correlation_id, dry_run=True)
+        except Exception as exc:
+            logger.warning({
+                "event": "routing_bridge_dry_run_failed",
+                "correlation_id": state.correlation_id,
+                "error": str(exc),
+            })
+    elif decision.route == "ESCALATE":
+        logger.warning({
+            "event": "routing_bridge_escalate",
+            "correlation_id": state.correlation_id,
+            "command": "NOTIFY_SUPERVISOR",
+            "matched_rule": decision.matched_rule,
+            "reason": decision.reason,
+        })
 
 
 # ── Pipeline ───────────────────────────────────────────────────────────────────
@@ -364,6 +390,41 @@ class ForgePipeline:
         ))
         return next_node
 
+    # ── routing exit gate ──────────────────────────────────────────────────────
+
+    async def _node_routing(self, state: _GraphState) -> dict[str, Any]:
+        _t0 = time.perf_counter()
+        s = get_settings()
+        inp = RoutingInput(
+            risk_level=state.risk_assessment.risk_level if state.risk_assessment else "UNKNOWN",
+            has_anomaly=state.anomaly_report.has_anomaly if state.anomaly_report else False,
+            plan_step_count=len(state.action_plan.steps) if state.action_plan else 0,
+            retry_count=state.retry_count,
+            max_retries=s.pipeline_max_retries,
+            recommendation=state.validation_result.recommendation if state.validation_result else None,
+        )
+        decision = apply_routing_rules(inp)
+
+        _apply_routing_bridge(decision, state)
+
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="routing_gate",
+            signals=inp.model_dump(),
+            decision=decision.route,
+            reason=f"[{decision.matched_rule}] {decision.reason}",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "06_라우팅게이트(routing_gate)",
+            "correlation_id": state.correlation_id,
+            "route": decision.route,
+            "matched_rule": decision.matched_rule,
+            "reason": decision.reason,
+        })
+        return {"routing_decision": decision, "stages_completed": state.stages_completed + ["routing_gate"]}
+
     # ── graph builder ──────────────────────────────────────────────────────────
 
     def _build_graph(self) -> Any:
@@ -374,18 +435,19 @@ class ForgePipeline:
         builder.add_node("diagnostic_and_sop_rag", self._node_diagnostic_and_sop_rag)
         builder.add_node("action_plan", self._node_action_plan)
         builder.add_node("validator", self._node_validator)
+        builder.add_node("routing_gate", self._node_routing)
 
         builder.add_edge(START, "risk_assessment")
 
         builder.add_conditional_edges(
             "risk_assessment",
             self._route_after_risk,
-            {"early_exit": END, "perception": "perception"},
+            {"early_exit": "routing_gate", "perception": "perception"},
         )
         builder.add_conditional_edges(
             "perception",
             self._route_after_perception,
-            {"parallel": "diagnostic_and_sop_rag", "end_no_anomaly": END},
+            {"parallel": "diagnostic_and_sop_rag", "end_no_anomaly": "routing_gate"},
         )
         builder.add_edge("diagnostic_and_sop_rag", "action_plan")
         builder.add_edge("action_plan", "validator")
@@ -393,11 +455,12 @@ class ForgePipeline:
             "validator",
             self._route_after_validator,
             {
-                "end_approved": END,
+                "end_approved": "routing_gate",
                 "retry_action_plan": "action_plan",
-                "end_max_retries": END,
+                "end_max_retries": "routing_gate",
             },
         )
+        builder.add_edge("routing_gate", END)
 
         return builder.compile()
 
@@ -465,5 +528,6 @@ class ForgePipeline:
             sop_context=final.sop_context,
             action_plan=final.action_plan,
             validation_result=final.validation_result,
+            routing_decision=final.routing_decision,
             metrics=metrics,
         )

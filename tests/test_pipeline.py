@@ -156,7 +156,7 @@ async def test_pipeline_early_exit_on_safe(correlation_id):
     assert result.anomaly_report is None
     assert result.action_plan is None
     assert result.validation_result is None
-    assert result.metrics.stages_completed == ["risk_assessment"]
+    assert result.metrics.stages_completed == ["risk_assessment", "routing_gate"]
 
 
 async def test_pipeline_correlation_id_propagated(sample_equipment_log):

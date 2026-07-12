@@ -48,6 +48,9 @@ async def analyze(request: Request, log: EquipmentLog) -> Response:
         headers["X-Plan-Status"] = "REJECTED"
     elif rec == "REVIEW":
         headers["X-Plan-Status"] = "REVIEW"
+    if result.routing_decision:
+        headers["X-Route"] = result.routing_decision.route
+        headers["X-Matched-Rule"] = result.routing_decision.matched_rule
 
     return Response(
         content=result.model_dump_json(),
