@@ -38,7 +38,9 @@ class SOPRAGAgent(BaseAgent):
                 correlation_id=correlation_id,
             )
 
-        user_msg = prompt.format_user_message(anomaly_report.model_dump(mode="json"))
+        user_msg = prompt.format_user_message(
+            anomaly_report.model_dump(mode="json", exclude={"tags", "correlation_id"})
+        )
         try:
             data = await self._invoke_chain(user_msg, correlation_id)
             query = data["query"]
