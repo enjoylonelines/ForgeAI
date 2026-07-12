@@ -8,7 +8,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 from core.config import get_settings
-from core.langchain_client import get_chat_llm
+from core.langchain_client import _BASE_SEED, get_chat_llm
 from core.langfuse_client import get_current_trace
 from core.logging import get_logger
 
@@ -51,7 +51,15 @@ class BaseAgent:
         self,
         user_message: str,
         correlation_id: str | None,
+        seed: int | None = None,
     ) -> dict:
+        if seed is not None and seed != _BASE_SEED:
+            chain = (
+                self._prompt | get_chat_llm(self.model, seed=seed) | JsonOutputParser()
+            ).with_retry(stop_after_attempt=3, wait_exponential_jitter=True)
+        else:
+            chain = self._chain
+
         start = time.monotonic()
         lf_trace = get_current_trace()
         generation = None
@@ -69,7 +77,7 @@ class BaseAgent:
             )
 
         try:
-            result: dict = await self._chain.ainvoke({"user_message": user_message})
+            result: dict = await chain.ainvoke({"user_message": user_message})
             elapsed_ms = round((time.monotonic() - start) * 1000)
             if generation:
                 generation.end(output=result, metadata={"latency_ms": elapsed_ms})

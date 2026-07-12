@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from agents.base import BaseAgent, MaxRetriesExceededError, ParseOutputError
+from core.langchain_client import _BASE_SEED
 from models.action_plan import ActionPlan
 from models.anomaly_report import AnomalyReport
 from models.sop_context import SOPContext
@@ -43,8 +44,9 @@ class ActionPlanAgent(BaseAgent):
             retry_attempt=retry_attempt,
             failure_type=failure_type,
         )
+        seed = _BASE_SEED + retry_attempt if retry_attempt > 0 else _BASE_SEED
         try:
-            data = await self._invoke_chain(user_msg, correlation_id)
+            data = await self._invoke_chain(user_msg, correlation_id, seed=seed)
             data.setdefault("generated_at", datetime.now(timezone.utc).isoformat())
             plan = ActionPlan.model_validate({**data, "correlation_id": correlation_id})
         except MaxRetriesExceededError:

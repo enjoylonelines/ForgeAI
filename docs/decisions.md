@@ -128,3 +128,35 @@ APPROVE 기준 0.85 미달 → 전부 REVIEW.
 
 **현재 상태**: REVIEW는 "사람 검토 필요" 의미로 운영상 허용 가능.
   데모 목적으로는 C 방식 구현 예정.
+
+---
+
+## ADR-008: 비결정성 통제 — temperature=0 + seed 고정 (D4 채택안)
+
+**날짜**: 2026-07-12  
+**상태**: 채택
+
+**배경**:
+동일 입력에 대해 LLM 출력이 매 호출마다 달라지면 파이프라인 재현성이 없고
+디버깅·포트폴리오 지표 신뢰성이 떨어진다.
+
+**결정**:
+- `get_chat_llm(model, seed)` — `temperature=0.0`, `seed=42`(기본값) 고정
+- `lru_cache`는 `(model, seed)` 쌍으로 인스턴스를 캐시함
+- REJECT 재시도에서만 `seed = BASE_SEED + retry_attempt`로 혼합
+  → 같은 재시도 횟수에서는 결정론적, 서로 다른 재시도에서는 탐색 다양성 확보
+
+**검토한 대안**:
+- D1: temperature=0만 (seed 없음) — GPU non-determinism 잔류 가능
+- D2: per-call seed 무작위 — 재현 불가
+- D3: temperature=0.1 유지 — 현 상태, 비결정성 제어 없음
+- **D4(채택)**: temperature=0 + 고정 seed, REJECT retry만 seed 혼합
+
+**검증 기준**:
+동일 입력 5회 실행 → 결정 등급(APPROVE/REVIEW/REJECT) 출력 일치.
+GPU 한계로 완전 일치 보장 불가 시 실측값을 이 ADR에 기록.
+
+**영향 범위**:
+- `core/langchain_client.py` — `get_chat_llm` 시그니처 변경
+- `agents/base.py` — `_invoke_chain(seed=)` 파라미터 추가
+- `agents/action_plan_agent.py` — retry 시 seed 혼합 적용
