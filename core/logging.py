@@ -10,11 +10,10 @@ from core.config import get_settings
 
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        msg = record.getMessage()
-        if isinstance(msg, dict):
-            payload = msg
+        if isinstance(record.msg, dict) and not record.args:
+            payload = record.msg
         else:
-            payload = {"message": msg}
+            payload = {"message": record.getMessage()}
 
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
