@@ -34,6 +34,7 @@ class Settings:
 
     pipeline_max_retries: int = field(default_factory=lambda: int(os.getenv("PIPELINE_MAX_RETRIES", "2")))
     control_adapter_path: str = field(default_factory=lambda: os.getenv("CONTROL_ADAPTER_PATH", "./build/control_adapter"))
+    decision_log_path: str = field(default_factory=lambda: os.getenv("DECISION_LOG_PATH", "./logs/decisions.jsonl"))
 
 
 @lru_cache(maxsize=1)

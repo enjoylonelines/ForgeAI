@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
@@ -13,9 +14,11 @@ from agents.hallucination_validator import HallucinationValidatorAgent
 from agents.perception_agent import PerceptionAgent
 from agents.sop_rag_agent import SOPRAGAgent
 from core.config import get_settings
+from core import decision_logger
 from core.langfuse_client import get_langfuse, set_current_trace
 from core.logging import get_logger
 from core.rule_engine import assess_risk
+from models.decision_event import DecisionEvent
 from models.action_plan import ActionPlan
 from models.anomaly_report import AnomalyReport
 from models.diagnostic_result import DiagnosticResult
@@ -78,7 +81,16 @@ class ForgePipeline:
     # ── node implementations ───────────────────────────────────────────────────
 
     async def _node_risk_assessment(self, state: _GraphState) -> dict[str, Any]:
+        _t0 = time.perf_counter()
         assessment = assess_risk(state.log, state.correlation_id)
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="rule_engine",
+            signals={"risk_level": assessment.risk_level, "failure_type": assessment.failure_type, "triggered": assessment.triggered_failure_types},
+            decision=assessment.risk_level,
+            reason=f"failure_type={assessment.failure_type}, factors={len(assessment.risk_factors)}",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
         logger.info({
             "event": "risk_assessment_complete",
             "correlation_id": state.correlation_id,
@@ -100,6 +112,7 @@ class ForgePipeline:
         }
 
     async def _node_perception(self, state: _GraphState) -> dict[str, Any]:
+        _t0 = time.perf_counter()
         try:
             report = await self._perception.run(state.log, state.correlation_id)
         except Exception as exc:
@@ -120,6 +133,14 @@ class ForgePipeline:
                 correlation_id=state.correlation_id,
                 tags=state.log.tags,
             )
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="perception",
+            signals={"has_anomaly": report.has_anomaly, "anomaly_count": len(report.anomalies)},
+            decision="ANOMALY_DETECTED" if report.has_anomaly else "NO_ANOMALY",
+            reason=report.summary,
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
         logger.info({
             "event": "pipeline_stage",
             "stage": "02_이상탐지(perception)",
@@ -135,6 +156,7 @@ class ForgePipeline:
 
     async def _node_diagnostic_and_sop_rag(self, state: _GraphState) -> dict[str, Any]:
         """Run diagnostic and SOP-RAG in parallel — both only need anomaly_report."""
+        _t0 = time.perf_counter()
         failure_type = (
             state.risk_assessment.failure_type if state.risk_assessment else None
         )
@@ -168,6 +190,14 @@ class ForgePipeline:
                 correlation_id=state.correlation_id,
             )
 
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="sop_search",
+            signals={"query_used": sop_ctx.query_used, "chunk_count": len(sop_ctx.chunks)},
+            decision="CHUNKS_FOUND" if sop_ctx.chunks else "NO_CHUNKS",
+            reason=f"top_chunk={sop_ctx.chunks[0].chunk_id if sop_ctx.chunks else None}",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
         logger.info({
             "event": "pipeline_stage",
             "stage": "03_SOP검색(sop_rag)",
@@ -183,6 +213,7 @@ class ForgePipeline:
         }
 
     async def _node_action_plan(self, state: _GraphState) -> dict[str, Any]:
+        _t0 = time.perf_counter()
         failure_type = (
             state.risk_assessment.failure_type
             if state.risk_assessment
@@ -213,6 +244,14 @@ class ForgePipeline:
                 escalation_reason="[ACTION PLAN FAILED] Manual intervention required.",
                 correlation_id=state.correlation_id,
             )
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="action_plan",
+            signals={"step_count": len(plan.steps), "escalation_required": plan.escalation_required},
+            decision="PLAN_GENERATED" if plan.steps else "FALLBACK",
+            reason=f"escalation={plan.escalation_required}, retry={state.retry_count}",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
         logger.info({
             "event": "pipeline_stage",
             "stage": "04_행동계획(action_plan)",
@@ -227,6 +266,7 @@ class ForgePipeline:
         }
 
     async def _node_validator(self, state: _GraphState) -> dict[str, Any]:
+        _t0 = time.perf_counter()
         try:
             result = await self._validator.run(state.action_plan, state.sop_context, state.correlation_id)
         except Exception as exc:
@@ -248,6 +288,14 @@ class ForgePipeline:
                 explanation="[VALIDATOR FAILED] Could not validate plan — manual review required.",
                 correlation_id=state.correlation_id,
             )
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="validator",
+            signals={"grounding_score": result.overall_grounding_score, "ungrounded_steps": result.ungrounded_steps},
+            decision=result.recommendation,
+            reason=result.explanation or "",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
         logger.info({
             "event": "pipeline_stage",
             "stage": "05_검증(validator)",
@@ -271,27 +319,50 @@ class ForgePipeline:
 
     # ── edge conditions ────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _route_after_risk(state: _GraphState) -> str:
-        if state.risk_assessment and state.risk_assessment.risk_level == "SAFE":
-            return "early_exit"
-        return "perception"
+    def _route_after_risk(self, state: _GraphState) -> str:
+        _t0 = time.perf_counter()
+        next_node = "early_exit" if (state.risk_assessment and state.risk_assessment.risk_level == "SAFE") else "perception"
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="routing",
+            signals={"from": "risk_assessment", "risk_level": state.risk_assessment.risk_level if state.risk_assessment else None},
+            decision=next_node,
+            reason="SAFE→early_exit, else→perception",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
+        return next_node
 
-    @staticmethod
-    def _route_after_perception(state: _GraphState) -> str:
-        if state.anomaly_report and state.anomaly_report.has_anomaly:
-            return "parallel"
-        return "end_no_anomaly"
+    def _route_after_perception(self, state: _GraphState) -> str:
+        _t0 = time.perf_counter()
+        next_node = "parallel" if (state.anomaly_report and state.anomaly_report.has_anomaly) else "end_no_anomaly"
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="routing",
+            signals={"from": "perception", "has_anomaly": state.anomaly_report.has_anomaly if state.anomaly_report else None},
+            decision=next_node,
+            reason="has_anomaly→parallel, else→end_no_anomaly",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
+        return next_node
 
-    @staticmethod
-    def _route_after_validator(state: _GraphState) -> str:
+    def _route_after_validator(self, state: _GraphState) -> str:
+        _t0 = time.perf_counter()
         rec = state.validation_result.recommendation if state.validation_result else "APPROVE"
         if rec in ("APPROVE", "REVIEW"):
-            return "end_approved"
-        max_retries = get_settings().pipeline_max_retries
-        if state.retry_count < max_retries:
-            return "retry_action_plan"
-        return "end_max_retries"
+            next_node = "end_approved"
+        elif state.retry_count < get_settings().pipeline_max_retries:
+            next_node = "retry_action_plan"
+        else:
+            next_node = "end_max_retries"
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="routing",
+            signals={"from": "validator", "recommendation": rec, "retry_count": state.retry_count},
+            decision=next_node,
+            reason=f"rec={rec}, retry={state.retry_count}",
+            duration_ms=(time.perf_counter() - _t0) * 1000,
+        ))
+        return next_node
 
     # ── graph builder ──────────────────────────────────────────────────────────
 
