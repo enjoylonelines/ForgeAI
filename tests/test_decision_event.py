@@ -95,17 +95,14 @@ def test_decision_event_schema():
 
 # ── JSONL 라이터 ────────────────────────────────────────────────────────────────
 
-def test_decision_logger_appends_jsonl(tmp_path):
+def test_decision_logger_appends_jsonl(tmp_path, monkeypatch):
     from core import decision_logger
 
     path = str(tmp_path / "test.jsonl")
-    with patch("core.config.get_settings") as mock_gs:
-        cfg = MagicMock()
-        cfg.decision_log_path = path
-        mock_gs.return_value = cfg
+    monkeypatch.setenv("DECISION_LOG_PATH", path)
 
-        decision_logger.append(DecisionEvent(correlation_id="c1", stage="rule_engine", signals={}, decision="SAFE", reason="ok", duration_ms=1.0))
-        decision_logger.append(DecisionEvent(correlation_id="c1", stage="perception", signals={}, decision="NO_ANOMALY", reason="clean", duration_ms=2.0))
+    decision_logger.append(DecisionEvent(correlation_id="c1", stage="rule_engine", signals={}, decision="SAFE", reason="ok", duration_ms=1.0))
+    decision_logger.append(DecisionEvent(correlation_id="c1", stage="perception", signals={}, decision="NO_ANOMALY", reason="clean", duration_ms=2.0))
 
     lines = [json.loads(ln) for ln in open(path).read().splitlines() if ln.strip()]
     assert len(lines) == 2
@@ -113,15 +110,12 @@ def test_decision_logger_appends_jsonl(tmp_path):
     assert lines[1]["stage"] == "perception"
 
 
-def test_decision_logger_creates_directory(tmp_path):
+def test_decision_logger_creates_directory(tmp_path, monkeypatch):
     from core import decision_logger
 
     path = str(tmp_path / "nested" / "dir" / "decisions.jsonl")
-    with patch("core.config.get_settings") as mock_gs:
-        cfg = MagicMock()
-        cfg.decision_log_path = path
-        mock_gs.return_value = cfg
-        decision_logger.append(DecisionEvent(correlation_id="c1", stage="rule_engine", signals={}, decision="SAFE", reason="ok", duration_ms=1.0))
+    monkeypatch.setenv("DECISION_LOG_PATH", path)
+    decision_logger.append(DecisionEvent(correlation_id="c1", stage="rule_engine", signals={}, decision="SAFE", reason="ok", duration_ms=1.0))
 
     assert os.path.exists(path)
 
@@ -197,10 +191,11 @@ def test_route_after_risk_records_routing_event():
     from pipeline.forge_pipeline import ForgePipeline, _GraphState
 
     captured: list[DecisionEvent] = []
+    pipeline = ForgePipeline.__new__(ForgePipeline)
     state = _GraphState(log=_LOG, correlation_id=_CID, risk_assessment=_risk("SAFE"))
 
     with patch.object(dl, "append", side_effect=captured.append):
-        result = ForgePipeline._route_after_risk(state)
+        result = pipeline._route_after_risk(state)
 
     assert result == "early_exit"
     assert len(captured) == 1
@@ -213,10 +208,11 @@ def test_route_after_perception_records_routing_event():
     from pipeline.forge_pipeline import ForgePipeline, _GraphState
 
     captured: list[DecisionEvent] = []
+    pipeline = ForgePipeline.__new__(ForgePipeline)
     state = _GraphState(log=_LOG, correlation_id=_CID, anomaly_report=_anomaly(True))
 
     with patch.object(dl, "append", side_effect=captured.append):
-        result = ForgePipeline._route_after_perception(state)
+        result = pipeline._route_after_perception(state)
 
     assert result == "parallel"
     assert captured[0].stage == "routing"
@@ -228,10 +224,11 @@ def test_route_after_validator_records_routing_event():
     from pipeline.forge_pipeline import ForgePipeline, _GraphState
 
     captured: list[DecisionEvent] = []
+    pipeline = ForgePipeline.__new__(ForgePipeline)
     state = _GraphState(log=_LOG, correlation_id=_CID, validation_result=_validation("APPROVE"), retry_count=0)
 
     with patch.object(dl, "append", side_effect=captured.append):
-        result = ForgePipeline._route_after_validator(state)
+        result = pipeline._route_after_validator(state)
 
     assert result == "end_approved"
     assert captured[0].stage == "routing"

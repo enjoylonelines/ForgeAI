@@ -9,8 +9,7 @@ _lock = threading.Lock()
 
 
 def append(event: DecisionEvent) -> None:
-    from core.config import get_settings
-    path = get_settings().decision_log_path
+    path = os.environ.get("DECISION_LOG_PATH", "./logs/decisions.jsonl")
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     line = event.model_dump_json() + "\n"
     with _lock:

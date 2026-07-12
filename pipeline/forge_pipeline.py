@@ -319,8 +319,7 @@ class ForgePipeline:
 
     # ── edge conditions ────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _route_after_risk(state: _GraphState) -> str:
+    def _route_after_risk(self, state: _GraphState) -> str:
         _t0 = time.perf_counter()
         next_node = "early_exit" if (state.risk_assessment and state.risk_assessment.risk_level == "SAFE") else "perception"
         decision_logger.append(DecisionEvent(
@@ -333,8 +332,7 @@ class ForgePipeline:
         ))
         return next_node
 
-    @staticmethod
-    def _route_after_perception(state: _GraphState) -> str:
+    def _route_after_perception(self, state: _GraphState) -> str:
         _t0 = time.perf_counter()
         next_node = "parallel" if (state.anomaly_report and state.anomaly_report.has_anomaly) else "end_no_anomaly"
         decision_logger.append(DecisionEvent(
@@ -347,8 +345,7 @@ class ForgePipeline:
         ))
         return next_node
 
-    @staticmethod
-    def _route_after_validator(state: _GraphState) -> str:
+    def _route_after_validator(self, state: _GraphState) -> str:
         _t0 = time.perf_counter()
         rec = state.validation_result.recommendation if state.validation_result else "APPROVE"
         if rec in ("APPROVE", "REVIEW"):
