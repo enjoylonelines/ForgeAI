@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
+from core.langfuse_client import get_current_trace
 from core.logging import get_logger
 from models.equipment_log import EquipmentLog
 from models.risk_assessment import RiskAssessment, RiskFactor
@@ -163,7 +164,7 @@ def assess_risk(log: EquipmentLog, correlation_id: str | None = None) -> RiskAss
             "note": "single-label triage — suppressed modes logged for diagnostic review",
         })
 
-    return RiskAssessment(
+    result = RiskAssessment(
         equipment_id=log.equipment_id,
         assessed_at=datetime.now(timezone.utc),
         risk_level=risk_level,
@@ -174,6 +175,17 @@ def assess_risk(log: EquipmentLog, correlation_id: str | None = None) -> RiskAss
         recommended_action=_make_action(risk_level),
         correlation_id=correlation_id,
     )
+
+    lf_trace = get_current_trace()
+    if lf_trace:
+        lf_trace.span(
+            name="rule_engine",
+            input={"equipment_id": log.equipment_id, "reading_count": len(log.readings)},
+            output={"risk_level": risk_level, "failure_type": failure_type, "triggered": triggered},
+            metadata={"correlation_id": correlation_id},
+        )
+
+    return result
 
 
 def _make_summary(risk_level: str, factors: list[RiskFactor]) -> str:
