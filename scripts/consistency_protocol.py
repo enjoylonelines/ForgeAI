@@ -112,11 +112,11 @@ async def run_once(pipeline: ForgePipeline, log: EquipmentLog) -> dict:
     }
 
 
-def consistency_rate(values: list) -> float:
-    """None 제외 후 최빈값 일치 비율."""
+def consistency_rate(values: list) -> float | None:
+    """None 제외 후 최빈값 일치 비율. 측정 가능한 값이 없으면 None 반환."""
     non_null = [v for v in values if v is not None]
     if not non_null:
-        return 1.0
+        return None
     mode = max(set(non_null), key=non_null.count)
     return sum(1 for v in non_null if v == mode) / len(non_null)
 
@@ -153,12 +153,15 @@ def build_report(
         grounding_scores, divergence_stage
     }
     """
-    overall_anomaly = statistics.mean(r["anomaly_consistency"] for r in results)
-    overall_rec    = statistics.mean(r["rec_consistency"]     for r in results)
-    overall_route  = statistics.mean(r["route_consistency"]   for r in results)
-    min_consistency = min(
-        overall_anomaly, overall_rec, overall_route
-    )
+    def _mean_or_none(key: str) -> float | None:
+        vals = [r[key] for r in results if r[key] is not None]
+        return statistics.mean(vals) if vals else None
+
+    overall_anomaly = _mean_or_none("anomaly_consistency")
+    overall_rec     = _mean_or_none("rec_consistency")
+    overall_route   = _mean_or_none("route_consistency")
+    available = [v for v in [overall_anomaly, overall_rec, overall_route] if v is not None]
+    min_consistency = min(available) if available else 1.0
 
     grounding_stds = [
         statistics.stdev(r["grounding_scores"]) if len(r["grounding_scores"]) > 1 else 0.0
@@ -172,6 +175,14 @@ def build_report(
     pass_fail = "✅ PASS" if min_consistency >= target_consistency else "❌ FAIL"
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    def _fmt(v: float | None) -> str:
+        return f"{v*100:.1f}%" if v is not None else "N/A"
+
+    def _judge(v: float | None) -> str:
+        if v is None:
+            return "—"
+        return "✅" if v >= target_consistency else "❌"
+
     lines = [
         f"# 일관성 프로토콜 실측 리포트",
         f"",
@@ -184,9 +195,9 @@ def build_report(
         f"",
         f"| 지표 | 값 | 판정 |",
         f"|------|-----|------|",
-        f"| has_anomaly 일관성 | {overall_anomaly*100:.1f}% | {'✅' if overall_anomaly >= target_consistency else '❌'} |",
-        f"| recommendation 일관성 | {overall_rec*100:.1f}% | {'✅' if overall_rec >= target_consistency else '❌'} |",
-        f"| route 일관성 | {overall_route*100:.1f}% | {'✅' if overall_route >= target_consistency else '❌'} |",
+        f"| has_anomaly 일관성 | {_fmt(overall_anomaly)} | {_judge(overall_anomaly)} |",
+        f"| recommendation 일관성 | {_fmt(overall_rec)} | {_judge(overall_rec)} |",
+        f"| route 일관성 | {_fmt(overall_route)} | {_judge(overall_route)} |",
         f"| grounding_score σ (평균) | {avg_gs_std:.4f} | — |",
         f"| 최초 분기 지점 | {most_common_div} | — |",
         f"| 종합 | — | {pass_fail} |",
@@ -201,11 +212,14 @@ def build_report(
         gs_std = statistics.stdev(r["grounding_scores"]) if len(r["grounding_scores"]) > 1 else 0.0
         rec_mode = max(set(r["runs_rec"]), key=r["runs_rec"].count) if r["runs_rec"] else "—"
         route_mode = max(set(r["runs_route"]), key=r["runs_route"].count) if r["runs_route"] else "—"
+        a_fmt  = _fmt(r["anomaly_consistency"])
+        rc_fmt = _fmt(r["rec_consistency"])
+        ro_fmt = _fmt(r["route_consistency"])
         lines.append(
             f"| {i} | {r['stratum']} | {r['equipment_id']} "
-            f"| {r['anomaly_consistency']*100:.0f}% "
-            f"| {r['rec_consistency']*100:.0f}% ({rec_mode}) "
-            f"| {r['route_consistency']*100:.0f}% ({route_mode}) "
+            f"| {a_fmt} "
+            f"| {rc_fmt} ({rec_mode}) "
+            f"| {ro_fmt} ({route_mode}) "
             f"| {gs_std:.4f} "
             f"| {r['divergence_stage'] or '없음'} |"
         )
@@ -222,11 +236,12 @@ def build_report(
             f"",
         ]
         for r in results:
-            if min(r["anomaly_consistency"], r["rec_consistency"], r["route_consistency"]) < target_consistency:
+            row_vals = [v for v in [r["anomaly_consistency"], r["rec_consistency"], r["route_consistency"]] if v is not None]
+            if row_vals and min(row_vals) < target_consistency:
                 lines.append(f"- `{r['equipment_id']}` ({r['stratum']}): "
-                             f"anomaly={r['anomaly_consistency']*100:.0f}% "
-                             f"rec={r['rec_consistency']*100:.0f}% "
-                             f"route={r['route_consistency']*100:.0f}%")
+                             f"anomaly={_fmt(r['anomaly_consistency'])} "
+                             f"rec={_fmt(r['rec_consistency'])} "
+                             f"route={_fmt(r['route_consistency'])}")
 
     return "\n".join(lines) + "\n"
 
@@ -265,8 +280,8 @@ async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: f
             "runs_rec": rec_vals,
             "runs_route": route_vals,
             "anomaly_consistency": consistency_rate(anomaly_vals),
-            "rec_consistency": consistency_rate(rec_vals) if rec_vals else 1.0,
-            "route_consistency": consistency_rate(route_vals) if route_vals else 1.0,
+            "rec_consistency": consistency_rate(rec_vals) if rec_vals else None,
+            "route_consistency": consistency_rate(route_vals) if route_vals else None,
             "grounding_scores": gs_vals,
             "divergence_stage": div_stage,
         }
@@ -276,8 +291,10 @@ async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: f
         a = result["anomaly_consistency"]
         rc = result["rec_consistency"]
         ro = result["route_consistency"]
-        status = "✅" if min(a, rc, ro) >= target else "❌"
-        print(f"{status} anomaly={a*100:.0f}% rec={rc*100:.0f}% route={ro*100:.0f}% ({elapsed:.1f}s)")
+        measurable = [v for v in [a, rc, ro] if v is not None]
+        status = "✅" if (measurable and min(measurable) >= target) else "❌"
+        fmt = lambda v: f"{v*100:.0f}%" if v is not None else "N/A"
+        print(f"{status} anomaly={fmt(a)} rec={fmt(rc)} route={fmt(ro)} ({elapsed:.1f}s)")
 
     elapsed_total = time.monotonic() - t_total
     report = build_report(all_results, n_runs, elapsed_total, target)
