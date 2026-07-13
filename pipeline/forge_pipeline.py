@@ -15,7 +15,7 @@ from agents.perception_agent import PerceptionAgent
 from agents.sop_rag_agent import SOPRAGAgent
 from core.config import get_settings
 from core import decision_logger
-from core.langfuse_client import get_langfuse, set_current_trace
+from core.langfuse_client import get_current_trace, get_langfuse, set_current_trace
 from core.logging import get_logger
 from core.rule_engine import assess_risk
 from models.decision_event import DecisionEvent
@@ -429,6 +429,16 @@ class ForgePipeline:
             "matched_rule": decision.matched_rule,
             "reason": decision.reason,
         })
+
+        lf_trace = get_current_trace()
+        if lf_trace:
+            lf_trace.span(
+                name="routing_gate",
+                input=inp.model_dump(),
+                output={"route": decision.route, "matched_rule": decision.matched_rule},
+                metadata={"reason": decision.reason, "correlation_id": state.correlation_id},
+            )
+
         return {"routing_decision": decision, "stages_completed": state.stages_completed + ["routing_gate"]}
 
     # ── graph builder ──────────────────────────────────────────────────────────

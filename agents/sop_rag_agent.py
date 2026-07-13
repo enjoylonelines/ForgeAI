@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from agents.base import BaseAgent, MaxRetriesExceededError, ParseOutputError
 from core.config import get_settings
+from core.langfuse_client import get_current_trace
 from core.logging import get_logger
 from models.anomaly_report import AnomalyReport
 from models.sop_context import SOPChunk, SOPContext
@@ -61,6 +62,13 @@ class SOPRAGAgent(BaseAgent):
             else None
         )
 
+        lf_trace = get_current_trace()
+        _lf_span = lf_trace.span(
+            name="vector_search",
+            input={"query": query, "k": n_results, "filter": filter_dict},
+            metadata={"correlation_id": correlation_id},
+        ) if lf_trace else None
+
         docs_with_scores = vectorstore.similarity_search_with_relevance_scores(
             query, k=n_results, filter=filter_dict
         )
@@ -71,6 +79,9 @@ class SOPRAGAgent(BaseAgent):
             docs_with_scores = vectorstore.similarity_search_with_relevance_scores(
                 query, k=n_results
             )
+
+        if _lf_span:
+            _lf_span.end(output={"result_count": len(docs_with_scores)})
 
         chunks: list[SOPChunk] = []
         for doc, score in docs_with_scores:
