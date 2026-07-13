@@ -51,6 +51,7 @@ async def test_validator_approve(mock_ollama_embed, mock_chroma_collection, samp
     assert result.correlation_id == correlation_id
 
 
+@pytest.mark.slow
 async def test_validator_reject_empty_sop(sample_action_plan, correlation_id):
     empty_sop = SOPContext(equipment_id="M-12345", query_used="", chunks=[], correlation_id=correlation_id)
 
@@ -66,6 +67,7 @@ async def test_validator_reject_empty_sop(sample_action_plan, correlation_id):
     assert result.recommendation == "REJECT"
 
 
+@pytest.mark.slow
 async def test_validator_empty_steps(sample_sop_context, correlation_id):
     empty_plan = ActionPlan(
         equipment_id="M-12345",

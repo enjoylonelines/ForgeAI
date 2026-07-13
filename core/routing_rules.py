@@ -3,15 +3,31 @@ from __future__ import annotations
 from models.routing import RoutingDecision, RoutingInput
 
 # 우선순위 순서로 평가 — 먼저 매칭된 규칙이 적용됨
-# R-1 (P-A): CRITICAL은 AUTO 금지 → ESCALATE
-# R-2 (C-6): 빈 행동 계획 → ESCALATE
-# R-3 (B-3): 재시도 소진 + REJECT → ESCALATE
-# R-4: SAFE early-exit → AUTO
-# R-5: 이상 없음 → AUTO
-# R-6: APPROVE/REVIEW → AUTO
+# R-C1 (D5-C): CRITICAL + verdict_conflict → ESCALATE
+# R-C2 (D5-C): WARNING + verdict_conflict → HUMAN_REVIEW
+# R-1 (P-A):   CRITICAL → ESCALATE (AUTO 금지)
+# R-2 (C-6):   빈 행동 계획 → ESCALATE
+# R-3 (B-3):   재시도 소진 + REJECT → ESCALATE
+# R-4:         SAFE early-exit → AUTO
+# R-5:         이상 없음 → AUTO
+# R-6:         APPROVE/REVIEW → AUTO
 
 
 def apply_routing_rules(inp: RoutingInput) -> RoutingDecision:
+    if inp.verdict_conflict and inp.risk_level == "CRITICAL":
+        return RoutingDecision(
+            route="ESCALATE",
+            matched_rule="R-C1",
+            reason="CRITICAL + verdict_conflict: rule 판정과 perception 불일치, 즉시 에스컬레이션",
+        )
+
+    if inp.verdict_conflict and inp.risk_level == "WARNING":
+        return RoutingDecision(
+            route="HUMAN_REVIEW",
+            matched_rule="R-C2",
+            reason="WARNING + verdict_conflict: rule 판정과 perception 불일치, 인간 검토 필요",
+        )
+
     if inp.risk_level == "CRITICAL":
         return RoutingDecision(
             route="ESCALATE",

@@ -101,3 +101,42 @@ def test_r4_safe_beats_r5():
     """SAFE이면 has_anomaly 관계없이 R-4"""
     d = apply_routing_rules(_inp(risk_level="SAFE", has_anomaly=True, recommendation=None))
     assert d.matched_rule == "R-4"
+
+
+# ── D5-C verdict_conflict 시나리오 테스트 ───────────────────────────────────────
+
+def test_rc1_critical_conflict_escalates():
+    """시나리오 1: rule_engine=CRITICAL, perception=이상없음 → ESCALATE(R-C1)"""
+    d = apply_routing_rules(_inp(
+        risk_level="CRITICAL",
+        has_anomaly=False,
+        verdict_conflict=True,
+        recommendation="APPROVE",
+    ))
+    assert d.route == "ESCALATE"
+    assert d.matched_rule == "R-C1"
+
+
+def test_rc2_warning_conflict_human_review():
+    """시나리오 2: rule_engine=WARNING, perception=이상없음 → HUMAN_REVIEW(R-C2)"""
+    d = apply_routing_rules(_inp(
+        risk_level="WARNING",
+        has_anomaly=False,
+        verdict_conflict=True,
+        recommendation="APPROVE",
+    ))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-C2"
+
+
+def test_rc1_beats_r1_with_conflict():
+    """CRITICAL+conflict는 R-C1이 R-1보다 먼저 매칭"""
+    d = apply_routing_rules(_inp(risk_level="CRITICAL", verdict_conflict=True))
+    assert d.matched_rule == "R-C1"
+
+
+def test_no_conflict_warning_not_human_review():
+    """충돌 없는 WARNING+APPROVE는 R-6으로 AUTO"""
+    d = apply_routing_rules(_inp(risk_level="WARNING", has_anomaly=True, verdict_conflict=False, recommendation="APPROVE"))
+    assert d.route == "AUTO"
+    assert d.matched_rule == "R-6"
