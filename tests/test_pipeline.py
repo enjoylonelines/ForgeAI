@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+import pytest
 from langchain_core.documents import Document
 
 from agents.base import BaseAgent
@@ -132,6 +134,7 @@ async def test_pipeline_full_run(sample_equipment_log, correlation_id):
     assert result.diagnostic_result.risk_index == 78.9
 
 
+@pytest.mark.slow
 async def test_pipeline_early_exit_on_safe(correlation_id):
     """rule engine이 SAFE를 반환하면 perception 이후 단계는 실행되지 않아야 한다."""
     # All sensors comfortably within safe range — rule engine will return SAFE

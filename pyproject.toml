@@ -39,6 +39,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: 실제 Ollama LLM을 호출하는 테스트 (run with '-m slow' or '--no-header -p no:warnings')",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
