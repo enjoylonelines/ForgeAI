@@ -395,13 +395,19 @@ class ForgePipeline:
     async def _node_routing(self, state: _GraphState) -> dict[str, Any]:
         _t0 = time.perf_counter()
         s = get_settings()
+        risk_level = state.risk_assessment.risk_level if state.risk_assessment else "UNKNOWN"
+        has_anomaly = state.anomaly_report.has_anomaly if state.anomaly_report else False
+        # rule engine이 위험 판정했는데 perception이 이상 없다고 하거나 그 반대인 경우 충돌
+        rule_non_safe = risk_level in ("CRITICAL", "WARNING")
+        verdict_conflict = (rule_non_safe and not has_anomaly) or (risk_level == "SAFE" and has_anomaly)
         inp = RoutingInput(
-            risk_level=state.risk_assessment.risk_level if state.risk_assessment else "UNKNOWN",
-            has_anomaly=state.anomaly_report.has_anomaly if state.anomaly_report else False,
+            risk_level=risk_level,
+            has_anomaly=has_anomaly,
             plan_step_count=len(state.action_plan.steps) if state.action_plan else 0,
             retry_count=state.retry_count,
             max_retries=s.pipeline_max_retries,
             recommendation=state.validation_result.recommendation if state.validation_result else None,
+            verdict_conflict=verdict_conflict,
         )
         decision = apply_routing_rules(inp)
 

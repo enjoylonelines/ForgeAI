@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-RoutingRoute = Literal["AUTO", "ESCALATE"]
+RoutingRoute = Literal["AUTO", "ESCALATE", "HUMAN_REVIEW"]
 
 
 class RoutingInput(BaseModel):
@@ -14,6 +14,7 @@ class RoutingInput(BaseModel):
     retry_count: int
     max_retries: int
     recommendation: str | None = None
+    verdict_conflict: bool = False
 
 
 class RoutingDecision(BaseModel):
