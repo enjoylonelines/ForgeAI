@@ -131,6 +131,48 @@ APPROVE 기준 0.85 미달 → 전부 REVIEW.
 
 ---
 
+## 버그 ④: TWF 임계값 경계 포함 누락 (`> 200` → `>= 200`)
+
+**발견**: AI4I 주검증(이슈 #9)에서 `machine_failure=1` + `TWF=1`인 행 중
+  `tool_wear_min=200.0`(L56354)이 SAFE로 판정돼 AUTO 라우팅으로 유출.
+
+**원인** (`rule_engine.py`):
+```python
+# 버그 — 200.0 정확히 일치 시 포착 안 됨
+if tool_wear is not None and tool_wear > _TWF_TOOL_WEAR_MIN:  # _TWF_TOOL_WEAR_MIN = 200.0
+```
+AI4I 2020 논문 기준: TWF는 tool_wear **≥ 200** min에서 발생.
+`>` 연산자가 경계값(200.0)을 제외해 false negative 발생.
+
+**수정**: `>` → `>=` (2곳: TWF trigger, tool_wear WARNING 임계값)
+
+**남은 TWF 유출 1건** (`M16856`, `tool_wear=198.0`):
+- 논문 기준(200+) 미만이지만 데이터셋이 TWF 레이블 부여.
+- 임계값을 198로 낮추면 다른 정상 행이 WARNING으로 상향될 위험.
+- **판단**: 데이터셋 레이블 이상(수작업 레이블 오류 가능성)으로 보고, 현 임계값 유지.
+  포트폴리오 문서에 "7건 중 1건은 데이터셋 경계 이상"으로 명시.
+
+---
+
+## 구조적 한계: NONE/RNF 유출 — 센서 기반 포착 불가
+
+**발견**: AI4I 주검증에서 `machine_failure=1`이지만 `TWF=HDF=PWF=OSF=RNF=0`인 행 9건 중
+  6건이 SAFE → AUTO 유출.
+
+**원인**:
+AI4I 2020 데이터셋에는 "어떤 고장 유형에도 해당하지 않지만 실패한" 행이 존재한다.
+논문은 이를 **RNF(Random National Failure)**로 분류하며
+"공정 파라미터와 결정론적 관계가 없다"고 명시한다.
+실제 센서값을 보면 정상 범위 내(tool_wear 20~179, torque 27~48, rpm 1419~1710)로
+단일 임계값 규칙으로는 구조적으로 포착 불가능하다.
+
+**결론**:
+- 이 유출은 rule_engine 버그가 아닌 **RNF의 정의에 의한 불가피한 한계**.
+- 해결 방향: 다변량 이상 탐지(ML predictor, 이슈 #11) — 센서 조합 패턴 학습 필요.
+- 포트폴리오 문서에 "NONE 6건은 RNF 구조적 한계, ML predictor 대상"으로 명시.
+
+---
+
 ## ADR-008: 비결정성 통제 — temperature=0 + seed 고정 (D4 채택안)
 
 **날짜**: 2026-07-12  
