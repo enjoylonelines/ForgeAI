@@ -433,6 +433,20 @@ ForgeAI/
 
 ---
 
+<!-- ai4i-verification-results -->
+
+### AI4I 2020 검증 결과
+
+| 지표 | 값 |
+|------|----|
+| 고장 전수 검출 | 불량 유출 8건 ❌ |
+| 정상 AUTO 비율 (rule engine early-exit) | 80.2% |
+| SAFE / WARNING / CRITICAL | 7,759 / 1,337 / 904 |
+
+상세: [`docs/ai4i_verification_report.md`](docs/ai4i_verification_report.md)
+
+---
+
 ## RAG 개선 기록
 
 초기 구현에서 TWF 요청 시 HDF SOP가 1위로 검색되는 문제를 4회 반복 개선으로 해결했습니다.
