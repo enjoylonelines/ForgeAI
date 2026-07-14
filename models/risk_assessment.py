@@ -25,3 +25,6 @@ class RiskAssessment(BaseModel):
     summary: str
     recommended_action: str | None = None
     correlation_id: str | None = None
+    # ADR-013: ML predictor 보조 신호 (rule_engine 결과를 강등하지 않음)
+    ml_predictor_proba: float | None = None
+    ml_predictor_upgraded: bool = False  # SAFE → WARNING 상향 여부

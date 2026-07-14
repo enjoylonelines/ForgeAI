@@ -18,6 +18,7 @@ from core import decision_logger
 from core.langfuse_client import get_current_trace, get_langfuse, set_current_trace
 from core.logging import get_logger
 from core.rule_engine import assess_risk
+from core import ml_predictor
 from models.decision_event import DecisionEvent
 from models.action_plan import ActionPlan
 from models.anomaly_report import AnomalyReport
@@ -132,6 +133,43 @@ class ForgePipeline:
             "triggered": assessment.triggered_failure_types,
             "risk_level": assessment.risk_level,
         })
+
+        # ADR-013: ML predictor 보조 신호 — rule_engine=SAFE인 경우에만 개입
+        _ml_t0 = time.perf_counter()
+        ml_proba = ml_predictor.predict_proba(state.log)
+        ml_upgraded = False
+        if assessment.risk_level == "SAFE" and ml_proba >= ml_predictor.ML_THRESHOLD:
+            assessment = assessment.model_copy(update={
+                "risk_level": "WARNING",
+                "summary": (
+                    f"[ML] Potential anomaly detected (proba={ml_proba:.3f} ≥ {ml_predictor.ML_THRESHOLD}). "
+                    "No deterministic sensor threshold exceeded — statistical pattern only."
+                ),
+                "recommended_action": "Schedule preventive inspection within the current shift.",
+                "ml_predictor_proba": ml_proba,
+                "ml_predictor_upgraded": True,
+            })
+            ml_upgraded = True
+        else:
+            assessment = assessment.model_copy(update={"ml_predictor_proba": ml_proba})
+
+        decision_logger.append(DecisionEvent(
+            correlation_id=state.correlation_id,
+            stage="ml_predictor",
+            signals={"ml_proba": round(ml_proba, 4), "threshold": ml_predictor.ML_THRESHOLD, "upgraded": ml_upgraded},
+            decision="UPGRADED_TO_WARNING" if ml_upgraded else "NO_CHANGE",
+            reason=f"proba={ml_proba:.4f}, threshold={ml_predictor.ML_THRESHOLD}",
+            duration_ms=(time.perf_counter() - _ml_t0) * 1000,
+        ))
+        logger.info({
+            "event": "pipeline_stage",
+            "stage": "01b_ML예측(ml_predictor)",
+            "correlation_id": state.correlation_id,
+            "ml_proba": round(ml_proba, 4),
+            "ml_upgraded": ml_upgraded,
+            "final_risk_level": assessment.risk_level,
+        })
+
         return {
             "risk_assessment": assessment,
             "stages_completed": state.stages_completed + ["risk_assessment"],

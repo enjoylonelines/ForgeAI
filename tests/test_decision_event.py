@@ -123,7 +123,7 @@ def test_decision_logger_creates_directory(tmp_path, monkeypatch):
 # ── 파이프라인 노드 단위 계측 ────────────────────────────────────────────────────
 
 async def test_node_risk_assessment_records_event():
-    """_node_risk_assessment가 rule_engine DecisionEvent를 기록한다."""
+    """_node_risk_assessment가 rule_engine + ml_predictor DecisionEvent를 기록한다."""
     import core.decision_logger as dl
     from pipeline.forge_pipeline import ForgePipeline, _GraphState
 
@@ -135,10 +135,12 @@ async def test_node_risk_assessment_records_event():
         state = _GraphState(log=_LOG, correlation_id=_CID)
         await pipeline._node_risk_assessment(state)
 
-    assert len(captured) == 1
-    assert captured[0].stage == "rule_engine"
-    assert captured[0].decision == "CRITICAL"
-    assert captured[0].correlation_id == _CID
+    stages = {e.stage for e in captured}
+    assert "rule_engine" in stages
+    assert "ml_predictor" in stages
+    rule_event = next(e for e in captured if e.stage == "rule_engine")
+    assert rule_event.decision == "CRITICAL"
+    assert rule_event.correlation_id == _CID
 
 
 async def test_node_perception_records_event(mock_ollama_chat):

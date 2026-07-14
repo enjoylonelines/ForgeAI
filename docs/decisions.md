@@ -173,6 +173,94 @@ AI4I 2020 데이터셋에는 "어떤 고장 유형에도 해당하지 않지만 
 
 ---
 
+## ADR-003: ML Predictor 운영점 — threshold=0.30 (F1-최적)
+
+**날짜**: 2026-07-14  
+**상태**: 채택
+
+**배경**:
+ML predictor는 rule_engine=SAFE인 경우에만 개입한다.
+threshold가 낮을수록 불량 포착은 늘지만 정상 AUTO가 줄어 운영 부담이 증가한다.
+
+**결정**: threshold=0.30 채택.
+
+AI4I train set (8,000행)에서 F1-최적 임계값을 계산했다.
+ablation 검증 결과 (전체 10,000행):
+
+| 모드 | 불량 AUTO 유출 | 전체 AUTO | 추가 ESCALATE(정상) |
+|------|--------------|-----------|------------------|
+| rule only | 7건 | 77.3% | — |
+| rule + ML(0.30) | 3건 | 76.9% | 37건 |
+
+불량 유출 7→3건(-57%), 정상 추가 ESCALATE 37건(전체의 0.4%).
+
+**검토한 대안**:
+- 0.10: 불량 포착 최대화, 정상 AUTO 대폭 감소 — 운영 과부하
+- 0.50: 포착 증가 미미, 기본값으로 의미 없음
+- **0.30(채택)**: F1 0.87, PR-AUC 0.95 — recall/precision 균형
+
+---
+
+## ADR-004: 확률 보정 — Platt Scaling (sigmoid, cv=5)
+
+**날짜**: 2026-07-14  
+**상태**: 채택
+
+**배경**:
+XGBoost `predict_proba`는 클래스 불균형(3.4% 고장)에서 확률을 과신뢰하는 경향이 있다.
+보정 없이 threshold=0.30을 적용하면 실제 양성 확률보다 낮거나 높은 값이 나올 수 있다.
+
+**결정**: `CalibratedClassifierCV(base, method="sigmoid", cv=5)` 적용.
+
+Platt scaling(sigmoid)은 XGBoost에 잘 맞는 파라메트릭 보정 방법이다.
+cv=5로 train set 내부에서 교차 검증 보정하므로 별도의 calibration set 분리가 불필요하다.
+
+**검토한 대안**:
+- isotonic: 비파라메트릭, 소규모 데이터에서 과적합 위험
+- prefit+별도 calibration set: 학습 데이터 감소
+- **sigmoid cv=5(채택)**: 표준, XGBoost에 충분
+
+---
+
+## ADR-013: ML Predictor 스펙 — 세 번째 심판 (이슈 #11)
+
+**날짜**: 2026-07-14  
+**상태**: 채택
+
+**역할**:
+```
+1단계:  rule_engine.assess_risk()     — 결정론적, 빠름
+1.5단계: ml_predictor.predict_proba() — 통계적, rule_engine=SAFE인 경우만 개입
+2단계+: LLM 에이전트 파이프라인       — 언어 이해, 고비용
+```
+
+**인터페이스**:
+- 입력: `EquipmentLog` (sensor readings + tags["type"])
+- 출력: `float` (보정된 고장 확률 0~1)
+- 파생: `is_anomaly(log, threshold) -> bool`
+
+**파이프라인 통합 규칙**:
+- rule_engine 결과가 WARNING/CRITICAL이면 ML predictor는 관여하지 않음
+- rule_engine=SAFE이고 ml_proba ≥ threshold이면 risk_level을 WARNING으로 상향
+- `RiskAssessment.ml_predictor_upgraded=True`로 상향 여부 기록
+- rule_engine 결과를 강등(DOWNGRADE)하는 경우는 없음
+
+**피처 (D6 누수 차단)**:
+Type, Air temperature K, Process temperature K, Rotational speed rpm, Torque Nm, Tool wear min
+→ TWF/HDF/PWF/OSF/RNF 5개 고장 플래그는 절대 입력 불가 (타깃 파생 컬럼)
+
+**학습 설정**:
+- XGBoost 300 estimators, max_depth=4, lr=0.05
+- scale_pos_weight = neg/pos (train 기준: 28.52)
+- Platt scaling 보정 (ADR-004)
+- lazy singleton + `functools.lru_cache(maxsize=1)`
+
+**검증 결과** (`scripts/ml_predictor_ablation.py`):
+- PR-AUC=0.9521, F1=0.8686 (threshold=0.30)
+- 불량 유출 7→3건, 추가 포착 4건, 자동화율 77.3%→76.9%
+
+---
+
 ## ADR-008: 비결정성 통제 — temperature=0 + seed 고정 (D4 채택안)
 
 **날짜**: 2026-07-12  
