@@ -76,9 +76,7 @@ def _load_secom() -> tuple[pd.DataFrame, pd.Series]:
 
 # ── XGBoost 학습·예측 ──────────────────────────────────────────────────────────
 
-def train_and_predict(
-    threshold: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def train_and_predict() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     반환: (y_test, proba_test, y_train, proba_train)
     SECOM label: 1=불량, -1=정상. XGBoost는 0/1로 변환.
@@ -260,7 +258,7 @@ def build_report(results: list[dict], elapsed: float, auc: float) -> str:
 def main(thresholds: list[float], out_path: Path | None) -> None:
     print("SECOM 데이터 로드 및 XGBoost 학습 중...")
     t0 = time.monotonic()
-    y_test, proba_test, y_train, _ = train_and_predict(thresholds[0])
+    y_test, proba_test, y_train, _ = train_and_predict()
     elapsed = time.monotonic() - t0
 
     auc = roc_auc_score(y_test, proba_test)
