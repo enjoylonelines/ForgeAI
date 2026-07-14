@@ -62,7 +62,7 @@ def get_all_triggered_failure_types(log: EquipmentLog) -> list[str]:
         if (process_temp - air_temp) < _HDF_TEMP_DIFF_MIN and rpm < _HDF_RPM_MAX:
             triggered.append("HDF")
 
-    if tool_wear is not None and tool_wear > _TWF_TOOL_WEAR_MIN:
+    if tool_wear is not None and tool_wear >= _TWF_TOOL_WEAR_MIN:
         triggered.append("TWF")
 
     return triggered
@@ -94,7 +94,7 @@ def _classify(sensor_id: str, value: float, util_pct: float) -> str | None:
         return "CRITICAL"
     if util_pct >= _WARNING_UTILIZATION:
         return "WARNING"
-    if sensor_id == "tool_wear_min" and value > _TOOL_WEAR_WARNING_THRESHOLD:
+    if sensor_id == "tool_wear_min" and value >= _TOOL_WEAR_WARNING_THRESHOLD:
         return "WARNING"
     return None
 

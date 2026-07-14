@@ -439,9 +439,9 @@ ForgeAI/
 
 | 지표 | 값 |
 |------|----|
-| 고장 전수 검출 | 불량 유출 8건 ❌ |
-| 정상 AUTO 비율 (rule engine early-exit) | 80.2% |
-| SAFE / WARNING / CRITICAL | 7,759 / 1,337 / 904 |
+| 고장 전수 검출 | 불량 유출 7건 ❌ |
+| 정상 AUTO 비율 (rule engine early-exit) | 80.0% |
+| SAFE / WARNING / CRITICAL | 7,731 / 1,362 / 907 |
 
 상세: [`docs/ai4i_verification_report.md`](docs/ai4i_verification_report.md)
 

@@ -42,11 +42,11 @@ def test_safe_all_mid_range():
     assert result.recommended_action is None
 
 
-def test_safe_tool_wear_exactly_at_threshold():
-    # 200 min is the boundary — not exceeding, so SAFE
+def test_warning_tool_wear_exactly_at_threshold():
+    # 200 min is the boundary — >= 200 triggers TWF → risk upgraded to WARNING
     log = _make_log(("tool_wear_min", 200.0))
     result = assess_risk(log)
-    assert result.risk_level == "SAFE"
+    assert result.risk_level == "WARNING"
 
 
 # ── WARNING ───────────────────────────────────────────────────────────────────
