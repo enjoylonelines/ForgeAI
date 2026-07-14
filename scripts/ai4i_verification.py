@@ -94,7 +94,8 @@ def run_verification(df: pd.DataFrame) -> dict:
         # non-SAFE → LLM pipeline → typically ESCALATE (R-1/R-4 applies for non-SAFE)
         deterministic_route = "AUTO" if ra.risk_level == "SAFE" else "ESCALATE"
 
-        sensor_snapshot = {r.sensor_id: r.value for r in log.readings}
+        sensors = {r.sensor_id: r.value for r in log.readings}
+        is_leak = machine_failure == 1 and ra.risk_level == "SAFE"
         results.append({
             "seq": seq,
             "equipment_id": log.equipment_id,
@@ -104,9 +105,9 @@ def run_verification(df: pd.DataFrame) -> dict:
             "rule_failure_type": ra.failure_type,
             "triggered_types": ra.triggered_failure_types,
             "deterministic_route": deterministic_route,
-            "sensors": sensor_snapshot,
-            # 불량 유출: 고장인데 SAFE → AUTO
-            "is_leak": machine_failure == 1 and ra.risk_level == "SAFE",
+            # 유출 행은 센서값을 함께 보존해 리포트에 활용
+            "sensors": sensors if is_leak else None,
+            "is_leak": is_leak,
             # 정상 AUTO: 정상인데 SAFE → AUTO (rule engine에서 early_exit 처리)
             "is_normal_auto": machine_failure == 0 and ra.risk_level == "SAFE",
         })
@@ -160,6 +161,7 @@ def aggregate(data: dict) -> dict:
         "failure_count": len(failure_rows),
         "normal_count": len(normal_rows),
         "leak_count": len(leaks),
+        "leak_rows": leaks,
         "leak_examples": [r["equipment_id"] for r in leaks[:10]],
         "normal_auto_count": len(normal_auto),
         "normal_auto_pct": len(normal_auto) / len(normal_rows) * 100 if normal_rows else 0.0,
@@ -235,18 +237,28 @@ def build_report(agg: dict, elapsed: float) -> str:
     if agg["leak_count"] > 0:
         lines += [
             "",
-            "## ❌ 불량 유출 목록 (상위 10건)",
+            f"## ❌ 불량 유출 목록 ({agg['leak_count']}건 전수)",
             "",
+            "| # | Equipment ID | failure_type | tool_wear | torque | rpm | air_temp | proc_temp |",
+            "|---|---|---|---|---|---|---|---|",
         ]
-        for eid in agg["leak_examples"]:
-            lines.append(f"- `{eid}`")
+        for i, r in enumerate(agg["leak_rows"], 1):
+            s = r.get("sensors") or {}
+            tw  = f"{s['tool_wear_min']:.1f}"          if "tool_wear_min"          in s else "—"
+            tq  = f"{s['torque_nm']:.1f}"              if "torque_nm"              in s else "—"
+            rpm = f"{s['rotational_speed_rpm']:.0f}"   if "rotational_speed_rpm"   in s else "—"
+            at  = f"{s['air_temperature_k']:.1f}"      if "air_temperature_k"      in s else "—"
+            pt  = f"{s['process_temperature_k']:.1f}"  if "process_temperature_k"  in s else "—"
+            lines.append(
+                f"| {i} | `{r['equipment_id']}` | {r['dataset_failure_type']}"
+                f" | {tw} | {tq} | {rpm} | {at} | {pt} |"
+            )
         lines += [
             "",
             "### 유출 원인 분석",
             "",
-            "rule_engine 센서 임계값 범위 안에 있으나 데이터셋 레이블이 고장인 행.",
-            "AI4I 2020 레이블이 복합 조건(시간 누적, 복수 센서 상호작용)으로 부여된 케이스로,",
-            "단일 임계값 기반 rule_engine의 구조적 한계. docs/decisions.md 참고.",
+            "- **TWF 유출**: `tool_wear_min` ≤ 200 이지만 데이터셋 레이블은 TWF — 임계값 재검토 대상 (이슈 #21)",
+            "- **NONE 유출**: `machine_failure=1` 이지만 특정 고장 유형 없음 — AI4I RNF 특성상 센서 패턴 없음, 단일 임계값으로 포착 불가 (구조적 한계)",
         ]
     else:
         lines += [
