@@ -19,6 +19,7 @@ import statistics
 import sys
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -248,7 +249,7 @@ def build_report(
 
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
-async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: float) -> None:
+async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: float, chart_path: Path | None = None) -> None:
     print(f"층화 샘플 로드 중 (stratum당 최대 {n_per_stratum}개)...")
     samples = load_stratified_samples(n_per_stratum=n_per_stratum)
     print(f"샘플 {len(samples)}건 로드 완료. {n_runs}회 × {len(samples)}건 = {n_runs * len(samples)}회 실행\n")
@@ -307,18 +308,103 @@ async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: f
         out_path.write_text(report, encoding="utf-8")
         print(f"리포트 저장: {out_path}")
 
+    if chart_path:
+        save_distribution_chart(all_results, chart_path)
+
+
+# ── 차트 생성 ─────────────────────────────────────────────────────────────────
+
+def save_distribution_chart(results: list[dict], out_path: Path) -> None:
+    """판정 분포 차트 저장 (route 일관성 + stratum별 route 분포)."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import numpy as np
+    except ImportError:
+        print("[WARN] matplotlib 미설치 — 차트 생략")
+        return
+
+    strata = [r["stratum"] for r in results]
+    unique_strata = list(dict.fromkeys(strata))
+
+    route_colors = {"AUTO": "#4CAF50", "ESCALATE": "#F44336", "HUMAN_REVIEW": "#FF9800", None: "#9E9E9E"}
+    route_labels = ["AUTO", "ESCALATE", "HUMAN_REVIEW"]
+
+    # stratum별 route 분포 집계
+    stratum_routes: dict[str, Counter] = {}
+    for r in results:
+        s = r["stratum"]
+        if s not in stratum_routes:
+            stratum_routes[s] = Counter()
+        for run in r["runs"]:
+            stratum_routes[s][run.get("route") or "None"] += 1
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("ForgeAI 판단 일관성 검증 결과", fontsize=14, fontweight="bold")
+
+    # ── 왼쪽: 일관성률 막대 ──────────────────────────────────────────────────
+    x = np.arange(len(results))
+    width = 0.25
+    a_vals = [r["anomaly_consistency"] or 0 for r in results]
+    rc_vals = [r["rec_consistency"] or 0 for r in results]
+    ro_vals = [r["route_consistency"] or 0 for r in results]
+
+    ax1.bar(x - width, a_vals, width, label="has_anomaly", color="#2196F3", alpha=0.8)
+    ax1.bar(x,         rc_vals, width, label="recommendation", color="#9C27B0", alpha=0.8)
+    ax1.bar(x + width, ro_vals, width, label="route", color="#FF5722", alpha=0.8)
+    ax1.axhline(y=0.99, color="black", linestyle="--", linewidth=1.2, label="목표 99%")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([r["equipment_id"][:8] for r in results], rotation=45, ha="right", fontsize=7)
+    ax1.set_ylim(0, 1.05)
+    ax1.set_ylabel("일관성률")
+    ax1.set_title("샘플별 판단 일관성")
+    ax1.legend(fontsize=8)
+    ax1.grid(axis="y", alpha=0.3)
+
+    # ── 오른쪽: stratum별 route 분포 스택 막대 ──────────────────────────────
+    xs = np.arange(len(unique_strata))
+    bottoms = np.zeros(len(unique_strata))
+    for rl in route_labels:
+        vals = [stratum_routes.get(s, Counter()).get(rl, 0) for s in unique_strata]
+        ax2.bar(xs, vals, bottom=bottoms, color=route_colors[rl], label=rl, alpha=0.85)
+        bottoms += np.array(vals)
+    ax2.set_xticks(xs)
+    ax2.set_xticklabels(unique_strata, rotation=30, ha="right")
+    ax2.set_ylabel("실행 횟수")
+    ax2.set_title("층화별 라우팅 분포")
+    patches = [mpatches.Patch(color=route_colors[rl], label=rl) for rl in route_labels]
+    ax2.legend(handles=patches, fontsize=8)
+    ax2.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"차트 저장: {out_path}")
+
+
+# ── 메인 ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="일관성 프로토콜 실측")
     parser.add_argument("--runs",     type=int,  default=20,  help="샘플당 반복 횟수 (기본 20)")
-    parser.add_argument("--samples",  type=int,  default=6,   help="stratum당 샘플 수 (기본 6)")
+    parser.add_argument("--samples",  type=int,  default=5,   help="stratum당 샘플 수 (기본 5 → 30×20=600)")
     parser.add_argument("--target",   type=float,default=0.99, help="일관성 목표 (기본 0.99)")
     parser.add_argument("--out",      type=str,  default="docs/consistency_report.md", help="리포트 출력 경로")
+    parser.add_argument("--chart",    type=str,  default="docs/consistency_distribution.png", help="차트 출력 경로")
+    parser.add_argument("--model",    type=str,  default=None, help="Ollama 모델 (예: qwen3:4b)")
     args = parser.parse_args()
+
+    if args.model:
+        import os
+        os.environ["OLLAMA_CHAT_MODEL"] = args.model
 
     asyncio.run(main(
         n_runs=args.runs,
         n_per_stratum=args.samples,
         out_path=Path(args.out) if args.out else None,
         target=args.target,
+        chart_path=Path(args.chart) if args.chart else None,
     ))
