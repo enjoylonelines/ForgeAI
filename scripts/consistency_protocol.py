@@ -208,6 +208,9 @@ def build_report(
     ]
     avg_gs_std = statistics.mean(grounding_stds) if grounding_stds else 0.0
 
+    all_gs = [gs for r in results for gs in r["grounding_scores"]]
+    avg_gs_mean = statistics.mean(all_gs) if all_gs else None
+
     divergence_stages = [r["divergence_stage"] for r in results if r["divergence_stage"]]
     most_common_div = max(set(divergence_stages), key=divergence_stages.count) if divergence_stages else "없음"
 
@@ -237,18 +240,20 @@ def build_report(
         f"| has_anomaly 일관성 | {_fmt(overall_anomaly)} | {_judge(overall_anomaly)} |",
         f"| recommendation 일관성 | {_fmt(overall_rec)} | {_judge(overall_rec)} |",
         f"| route 일관성 | {_fmt(overall_route)} | {_judge(overall_route)} |",
+        f"| grounding_score 평균 | {avg_gs_mean*100:.1f}% | — |" if avg_gs_mean is not None else "| grounding_score 평균 | N/A | — |",
         f"| grounding_score σ (평균) | {avg_gs_std:.4f} | — |",
         f"| 최초 분기 지점 | {most_common_div} | — |",
         f"| 종합 | — | {pass_fail} |",
         f"",
         f"## 층화별 결과",
         f"",
-        f"| # | 층 | Equipment ID | anomaly | rec | route | gs_σ | 분기점 |",
-        f"|---|---|---|---|---|---|---|---|",
+        f"| # | 층 | Equipment ID | anomaly | rec | route | gs_μ | gs_σ | 분기점 |",
+        f"|---|---|---|---|---|---|---|---|---|",
     ]
 
     for i, r in enumerate(results, 1):
         gs_std = statistics.stdev(r["grounding_scores"]) if len(r["grounding_scores"]) > 1 else 0.0
+        gs_mean_fmt = f"{statistics.mean(r['grounding_scores'])*100:.1f}%" if r["grounding_scores"] else "N/A"
         rec_mode = max(set(r["runs_rec"]), key=r["runs_rec"].count) if r["runs_rec"] else "—"
         route_mode = max(set(r["runs_route"]), key=r["runs_route"].count) if r["runs_route"] else "—"
         a_fmt  = _fmt(r["anomaly_consistency"])
@@ -259,6 +264,7 @@ def build_report(
             f"| {a_fmt} "
             f"| {rc_fmt} ({rec_mode}) "
             f"| {ro_fmt} ({route_mode}) "
+            f"| {gs_mean_fmt} "
             f"| {gs_std:.4f} "
             f"| {r['divergence_stage'] or '없음'} |"
         )
