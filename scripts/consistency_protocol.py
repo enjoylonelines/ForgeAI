@@ -31,64 +31,102 @@ from models.equipment_log import EquipmentLog, SensorReading
 from pipeline.forge_pipeline import ForgePipeline
 
 
-# ── 층화 샘플 로더 ─────────────────────────────────────────────────────────────
+# ── 층화 샘플 정의 ─────────────────────────────────────────────────────────────
+# rule_engine 임계값을 확실히 트리거하는 하드코딩 케이스.
+# AI4I 랜덤 샘플은 라벨이 있어도 센서값이 임계값을 안 넘어 early_exit(SAFE)가 되어
+# LLM 파이프라인이 실행되지 않으므로 일관성 측정 의미가 없음.
 
-_FAILURE_COLS = ["TWF", "HDF", "PWF", "OSF", "RNF"]
-_LOCAL_CSV = Path(__file__).parent.parent / "data" / "ai4i2020.csv"
+_FIXED_SAMPLES: list[tuple[str, dict]] = [
+    # TWF: tool_wear ≥ 200 → rule_engine CRITICAL
+    ("TWF", dict(equipment_id="CP-TWF-001", log_level="ERROR",
+                 message="Tool wear limit exceeded",
+                 air=298.0, proc=308.0, rpm=1500.0, torque=42.0, wear=215.0,
+                 failure_types="TWF")),
+    ("TWF", dict(equipment_id="CP-TWF-002", log_level="ERROR",
+                 message="Tool wear critical",
+                 air=299.0, proc=309.0, rpm=1480.0, torque=40.0, wear=230.0,
+                 failure_types="TWF")),
+    # HDF: (proc-air) < 8.6 AND rpm < 1380 → rule_engine WARNING
+    ("HDF", dict(equipment_id="CP-HDF-001", log_level="WARN",
+                 message="Heat dissipation anomaly",
+                 air=302.0, proc=308.0, rpm=1200.0, torque=35.0, wear=80.0,
+                 failure_types="HDF")),
+    ("HDF", dict(equipment_id="CP-HDF-002", log_level="WARN",
+                 message="Heat dissipation low",
+                 air=303.0, proc=308.5, rpm=1300.0, torque=33.0, wear=90.0,
+                 failure_types="HDF")),
+    # PWF: torque × rpm × 2π/60 < 3500 → rule_engine WARNING
+    ("PWF", dict(equipment_id="CP-PWF-001", log_level="ERROR",
+                 message="Power output below minimum",
+                 air=299.0, proc=309.0, rpm=1400.0, torque=15.0, wear=90.0,
+                 failure_types="PWF")),
+    ("PWF", dict(equipment_id="CP-PWF-002", log_level="ERROR",
+                 message="Power failure detected",
+                 air=300.0, proc=310.0, rpm=1350.0, torque=14.0, wear=85.0,
+                 failure_types="PWF")),
+    # OSF: tool_wear × torque > 11000 → rule_engine WARNING
+    ("OSF", dict(equipment_id="CP-OSF-001", log_level="WARN",
+                 message="Overstrain condition detected",
+                 air=300.0, proc=310.0, rpm=1000.0, torque=60.0, wear=190.0,
+                 failure_types="OSF")),
+    ("OSF", dict(equipment_id="CP-OSF-002", log_level="WARN",
+                 message="Overstrain limit exceeded",
+                 air=301.0, proc=311.0, rpm=950.0,  torque=65.0, wear=180.0,
+                 failure_types="OSF")),
+    # RNF: 임계값 없음 → ML predictor 보조 탐지 경로
+    ("RNF", dict(equipment_id="CP-RNF-001", log_level="WARN",
+                 message="Random failure pattern",
+                 air=305.0, proc=315.0, rpm=1600.0, torque=55.0, wear=150.0,
+                 failure_types="RNF")),
+    ("RNF", dict(equipment_id="CP-RNF-002", log_level="WARN",
+                 message="Unclassified anomaly",
+                 air=304.0, proc=314.0, rpm=1550.0, torque=52.0, wear=145.0,
+                 failure_types="RNF")),
+    # NORMAL: 모든 센서 정상 → SAFE early_exit (대조군)
+    ("NORMAL", dict(equipment_id="CP-NRM-001", log_level="INFO",
+                    message="Normal operation",
+                    air=300.0, proc=310.0, rpm=1800.0, torque=38.0, wear=95.0,
+                    failure_types="NONE")),
+    ("NORMAL", dict(equipment_id="CP-NRM-002", log_level="INFO",
+                    message="Normal operation",
+                    air=299.5, proc=309.5, rpm=1850.0, torque=36.0, wear=100.0,
+                    failure_types="NONE")),
+]
 
 
-def _load_raw_df() -> pd.DataFrame:
-    if _LOCAL_CSV.exists():
-        return pd.read_csv(_LOCAL_CSV)
-    from ucimlrepo import fetch_ucirepo
-    dataset = fetch_ucirepo(id=601)
-    X = dataset.data.features.copy()
-    y = dataset.data.targets.copy()
-    return pd.concat([X, y], axis=1)
-
-
-def _row_to_log(row: pd.Series, seq: int) -> EquipmentLog:
+def load_stratified_samples(n_per_stratum: int = 1) -> list[tuple[str, EquipmentLog]]:
+    """rule_engine을 확실히 트리거하는 고정 케이스 반환. [(stratum_label, log)]
+    n_per_stratum: stratum당 샘플 수 (기본 1, 최대 2)
+    """
     from datetime import timedelta
-    ts = datetime(2026, 1, 1, 8, tzinfo=timezone.utc) + timedelta(minutes=seq * 5)
-    active = [f for f in _FAILURE_COLS if row.get(f, 0)]
-    return EquipmentLog(
-        equipment_id=str(row.get("Product ID", f"EQ-{seq}")),
-        timestamp=ts,
-        log_level="ERROR" if active else "INFO",
-        message=f"Failure: {','.join(active)}" if active else "Normal operation",
-        readings=[
-            SensorReading(sensor_id="air_temperature_k",     unit="K",   value=float(row["Air temperature [K]"])),
-            SensorReading(sensor_id="process_temperature_k", unit="K",   value=float(row["Process temperature [K]"])),
-            SensorReading(sensor_id="rotational_speed_rpm",  unit="rpm", value=float(row["Rotational speed [rpm]"])),
-            SensorReading(sensor_id="torque_nm",             unit="Nm",  value=float(row["Torque [Nm]"])),
-            SensorReading(sensor_id="tool_wear_min",         unit="min", value=float(row["Tool wear [min]"])),
-        ],
-        tags={
-            "type": str(row.get("Type", "M")),
-            "failure_types": active[0] if active else "NONE",
-            "machine_failure": str(int(row.get("Machine failure", 0))),
-        },
-    )
-
-
-def load_stratified_samples(n_per_stratum: int = 6) -> list[tuple[str, EquipmentLog]]:
-    """고장 유형별 n개 + 정상 n개 층화 샘플. 반환: [(stratum_label, log)]"""
-    df = _load_raw_df()
     samples: list[tuple[str, EquipmentLog]] = []
-    seq = 0
 
-    for col in _FAILURE_COLS:
-        if col not in df.columns:
+    seen: dict[str, int] = {}
+    for stratum, spec in _FIXED_SAMPLES:
+        count = seen.get(stratum, 0)
+        if count >= n_per_stratum:
             continue
-        subset = df[df[col] == 1].head(n_per_stratum)
-        for _, row in subset.iterrows():
-            samples.append((col, _row_to_log(row, seq)))
-            seq += 1
+        seen[stratum] = count + 1
+        seq = len(samples)
+        ts = datetime(2026, 1, 1, 8, tzinfo=timezone.utc) + timedelta(minutes=seq * 5)
+        log = EquipmentLog(
+            equipment_id=spec["equipment_id"],
+            timestamp=ts,
+            log_level=spec["log_level"],
+            message=spec["message"],
+            readings=[
+                SensorReading(sensor_id="air_temperature_k",     unit="K",   value=spec["air"]),
+                SensorReading(sensor_id="process_temperature_k", unit="K",   value=spec["proc"]),
+                SensorReading(sensor_id="rotational_speed_rpm",  unit="rpm", value=spec["rpm"]),
+                SensorReading(sensor_id="torque_nm",             unit="Nm",  value=spec["torque"]),
+                SensorReading(sensor_id="tool_wear_min",         unit="min", value=spec["wear"]),
+            ],
+            tags={"type": "M", "failure_types": spec["failure_types"],
+                  "machine_failure": "0" if stratum == "NORMAL" else "1"},
+        )
+        samples.append((stratum, log))
 
-    normal_df = df[df["Machine failure"] == 0].head(n_per_stratum)
-    for _, row in normal_df.iterrows():
-        samples.append(("NORMAL", _row_to_log(row, seq)))
-        seq += 1
+    return samples
 
     return samples
 
