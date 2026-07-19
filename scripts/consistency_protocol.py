@@ -128,8 +128,6 @@ def load_stratified_samples(n_per_stratum: int = 1) -> list[tuple[str, Equipment
 
     return samples
 
-    return samples
-
 
 # ── 실행 및 집계 ───────────────────────────────────────────────────────────────
 
