@@ -567,7 +567,7 @@ class ForgePipeline:
                 validation_result=final.validation_result,
                 routing_decision=final.routing_decision,
                 metrics=metrics,
-            ), final
+            )
 
         if lf:
             with lf.start_as_current_observation(
@@ -576,16 +576,16 @@ class ForgePipeline:
                 input=log.model_dump(mode="json"),
                 metadata={"equipment_id": log.equipment_id, "correlation_id": correlation_id},
             ) as _lf_root:
-                pipeline_result, final = await _run_graph()
+                result = await _run_graph()
                 _lf_root.update(output={
-                    "risk_level": pipeline_result.metrics.risk_level,
-                    "early_exit": pipeline_result.metrics.early_exit,
-                    "has_anomaly": final.anomaly_report.has_anomaly if final.anomaly_report else None,
-                    "recommendation": final.validation_result.recommendation if final.validation_result else None,
-                    "grounding_score": final.validation_result.overall_grounding_score if final.validation_result else None,
+                    "risk_level": result.metrics.risk_level,
+                    "early_exit": result.metrics.early_exit,
+                    "has_anomaly": result.anomaly_report.has_anomaly if result.anomaly_report else None,
+                    "recommendation": result.validation_result.recommendation if result.validation_result else None,
+                    "grounding_score": result.validation_result.overall_grounding_score if result.validation_result else None,
                 })
             lf.flush()
         else:
-            pipeline_result, _ = await _run_graph()
+            result = await _run_graph()
 
-        return pipeline_result
+        return result
