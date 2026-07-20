@@ -1,9 +1,6 @@
 """search_sop MCP tool — v1.0.0"""
 from __future__ import annotations
 
-import math
-from typing import Literal
-
 from pydantic import BaseModel, Field, field_validator
 
 # 출력 토큰 예산: 청크당 최대 chars, 전체 최대 chars
