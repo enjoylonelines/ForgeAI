@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-07-20T07:01:12.591898+00:00",
+  "description": "이슈 #30 합성 충돌 케이스 — D5 정책(충돌=불확실성 증거) 작동 검증",
+  "policy": "verdict_conflict=(rule_non_safe AND NOT has_anomaly): R-C1(CRITICAL→ESCALATE), R-C2(WARNING→HUMAN_REVIEW)",
+  "cases": [
+    {
+      "correlation_id": "conflict-M-CONFLICT-W01-01",
+      "name": "WARNING 충돌 (R-C2 → HUMAN_REVIEW)",
+      "equipment_id": "M-CONFLICT-W01",
+      "risk_level": "WARNING",
+      "failure_type": "TWF",
+      "mock_has_anomaly": false,
+      "verdict_conflict": true,
+      "route": "HUMAN_REVIEW",
+      "matched_rule": "R-C2",
+      "reason": "WARNING + verdict_conflict: rule 판정과 perception 불일치, 인간 검토 필요",
+      "pass": true,
+      "langfuse_trace_id": "conflict-M-CONFLICT-W01-01",
+      "input_log": {
+        "equipment_id": "M-CONFLICT-W01",
+        "timestamp": "2026-07-20T09:00:00+00:00",
+        "log_level": "INFO",
+        "message": "Routine daily maintenance check — no issues observed by operator",
+        "readings": [
+          {
+            "sensor_id": "air_temperature_k",
+            "value": 299.0,
+            "unit": "K"
+          },
+          {
+            "sensor_id": "process_temperature_k",
+            "value": 309.0,
+            "unit": "K"
+          },
+          {
+            "sensor_id": "rotational_speed_rpm",
+            "value": 1500.0,
+            "unit": "rpm"
+          },
+          {
+            "sensor_id": "torque_nm",
+            "value": 42.0,
+            "unit": "Nm"
+          },
+          {
+            "sensor_id": "tool_wear_min",
+            "value": 215.0,
+            "unit": "min"
+          }
+        ]
+      }
+    },
+    {
+      "correlation_id": "conflict-M-CONFLICT-C01-02",
+      "name": "CRITICAL 충돌 (R-C1 → ESCALATE)",
+      "equipment_id": "M-CONFLICT-C01",
+      "risk_level": "CRITICAL",
+      "failure_type": "TWF",
+      "mock_has_anomaly": false,
+      "verdict_conflict": true,
+      "route": "ESCALATE",
+      "matched_rule": "R-C1",
+      "reason": "CRITICAL + verdict_conflict: rule 판정과 perception 불일치, 즉시 에스컬레이션",
+      "pass": true,
+      "langfuse_trace_id": "conflict-M-CONFLICT-C01-02",
+      "input_log": {
+        "equipment_id": "M-CONFLICT-C01",
+        "timestamp": "2026-07-20T09:05:00+00:00",
+        "log_level": "INFO",
+        "message": "Standard shift handover log — machine running smoothly per operator report",
+        "readings": [
+          {
+            "sensor_id": "air_temperature_k",
+            "value": 299.0,
+            "unit": "K"
+          },
+          {
+            "sensor_id": "process_temperature_k",
+            "value": 309.0,
+            "unit": "K"
+          },
+          {
+            "sensor_id": "rotational_speed_rpm",
+            "value": 1500.0,
+            "unit": "rpm"
+          },
+          {
+            "sensor_id": "torque_nm",
+            "value": 42.0,
+            "unit": "Nm"
+          },
+          {
+            "sensor_id": "tool_wear_min",
+            "value": 240.0,
+            "unit": "min"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from core.langchain_client import get_chat_llm
-from core.langfuse_client import get_current_trace
+from core.langfuse_client import get_langfuse
 from core.logging import get_logger
 from models.anomaly_report import AnomalyReport
 from models.diagnostic_result import DiagnosticResult, ToolCallRecord
@@ -84,11 +84,12 @@ class DiagnosticAgent:
         alert_id: str | None = None
         final_summary = ""
 
-        lf_trace = get_current_trace()
+        lf = get_langfuse()
         generation = None
-        if lf_trace:
-            generation = lf_trace.generation(
+        if lf:
+            generation = lf.start_observation(
                 name="DiagnosticAgent",
+                as_type="generation",
                 model=None,
                 input=user_content,
                 metadata={"correlation_id": correlation_id, "prompt_version": "diagnostic_v1"},
@@ -137,7 +138,8 @@ class DiagnosticAgent:
                 ))
 
         if generation:
-            generation.end(output={"summary": final_summary, "tool_calls": len(tool_call_records)})
+            generation.update(output={"summary": final_summary, "tool_calls": len(tool_call_records)})
+            generation.end()
 
         result = DiagnosticResult(
             equipment_id=anomaly_report.equipment_id,

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from agents.base import BaseAgent, MaxRetriesExceededError
 from core.config import get_settings
 from core.langchain_client import get_embeddings
-from core.langfuse_client import get_current_trace
+from core.langfuse_client import get_langfuse
 from core.logging import get_logger
 from models.action_plan import ActionPlan
 from models.sop_context import SOPContext
@@ -88,14 +88,15 @@ class HallucinationValidatorAgent(BaseAgent):
         ungrounded = [sv.step_number for sv in step_validations if not sv.is_grounded]
         is_valid = overall >= threshold
 
-        lf_trace = get_current_trace()
-        if lf_trace:
-            lf_trace.span(
+        lf = get_langfuse()
+        if lf:
+            obs = lf.start_observation(
                 name="cosine_grounding",
                 input={"step_count": len(action_plan.steps), "threshold": threshold},
                 output={"overall_grounding_score": overall, "ungrounded_steps": ungrounded},
                 metadata={"correlation_id": correlation_id},
             )
+            obs.end()
 
         if overall >= 0.85:
             recommendation = "APPROVE"

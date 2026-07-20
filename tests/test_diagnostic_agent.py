@@ -12,7 +12,7 @@ from agents.diagnostic_agent import DiagnosticAgent
 def mock_diagnostic_llm():
     """DiagnosticAgent의 LLM bind_tools 결과를 mock — Ollama 호출 없이 테스트."""
     with patch("agents.diagnostic_agent.get_chat_llm") as mock_get_llm, \
-         patch("agents.diagnostic_agent.get_current_trace", return_value=None):
+         patch("agents.diagnostic_agent.get_langfuse", return_value=None):
         mock_llm_instance = MagicMock()
         bound_llm = MagicMock()
         bound_llm.ainvoke = AsyncMock()
