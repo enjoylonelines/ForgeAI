@@ -15,7 +15,7 @@ from agents.perception_agent import PerceptionAgent
 from agents.sop_rag_agent import SOPRAGAgent
 from core.config import get_settings
 from core import decision_logger
-from core.langfuse_client import get_current_trace, get_langfuse, set_current_trace
+from core.langfuse_client import get_langfuse
 from core.logging import get_logger
 from core.rule_engine import assess_risk
 from core import ml_predictor
@@ -468,14 +468,15 @@ class ForgePipeline:
             "reason": decision.reason,
         })
 
-        lf_trace = get_current_trace()
-        if lf_trace:
-            lf_trace.span(
+        lf = get_langfuse()
+        if lf:
+            obs = lf.start_observation(
                 name="routing_gate",
                 input=inp.model_dump(),
                 output={"route": decision.route, "matched_rule": decision.matched_rule},
                 metadata={"reason": decision.reason, "correlation_id": state.correlation_id},
             )
+            obs.end()
 
         return {"routing_decision": decision, "stages_completed": state.stages_completed + ["routing_gate"]}
 
@@ -528,60 +529,63 @@ class ForgePipeline:
         })
 
         lf = get_langfuse()
-        trace = None
-        if lf:
-            trace = lf.trace(
-                id=correlation_id,
-                name="forge_pipeline",
-                input=log.model_dump(mode="json"),
-                metadata={"equipment_id": log.equipment_id},
+
+        async def _run_graph() -> PipelineResult:
+            initial = _GraphState(log=log, correlation_id=correlation_id)
+            raw: dict = await self._graph.ainvoke(initial)
+            final = _GraphState.model_validate(raw)
+
+            risk_level = final.risk_assessment.risk_level if final.risk_assessment else "UNKNOWN"
+            early_exit = risk_level == "SAFE"
+            retry_count = max(0, final.stages_completed.count("action_plan") - 1)
+
+            metrics = PipelineMetrics(
+                risk_level=risk_level,
+                early_exit=early_exit,
+                retry_count=retry_count,
+                stages_completed=final.stages_completed,
             )
-            set_current_trace(trace)
 
-        initial = _GraphState(log=log, correlation_id=correlation_id)
-        raw: dict = await self._graph.ainvoke(initial)
-        final = _GraphState.model_validate(raw)
-
-        risk_level = final.risk_assessment.risk_level if final.risk_assessment else "UNKNOWN"
-        early_exit = risk_level == "SAFE"
-        retry_count = max(0, final.stages_completed.count("action_plan") - 1)
-
-        metrics = PipelineMetrics(
-            risk_level=risk_level,
-            early_exit=early_exit,
-            retry_count=retry_count,
-            stages_completed=final.stages_completed,
-        )
-
-        logger.info({
-            "event": "pipeline_complete",
-            "correlation_id": correlation_id,
-            "equipment_id": log.equipment_id,
-            "risk_level": risk_level,
-            "early_exit": early_exit,
-            "has_anomaly": final.anomaly_report.has_anomaly if final.anomaly_report else None,
-            "recommendation": final.validation_result.recommendation if final.validation_result else None,
-            "retry_count": retry_count,
-        })
-
-        if trace:
-            trace.update(output={
+            logger.info({
+                "event": "pipeline_complete",
+                "correlation_id": correlation_id,
+                "equipment_id": log.equipment_id,
                 "risk_level": risk_level,
                 "early_exit": early_exit,
                 "has_anomaly": final.anomaly_report.has_anomaly if final.anomaly_report else None,
                 "recommendation": final.validation_result.recommendation if final.validation_result else None,
-                "grounding_score": final.validation_result.overall_grounding_score if final.validation_result else None,
+                "retry_count": retry_count,
             })
-            lf.flush()
 
-        return PipelineResult(
-            correlation_id=correlation_id,
-            risk_assessment=final.risk_assessment,
-            anomaly_report=final.anomaly_report,
-            diagnostic_result=final.diagnostic_result,
-            sop_context=final.sop_context,
-            action_plan=final.action_plan,
-            validation_result=final.validation_result,
-            routing_decision=final.routing_decision,
-            metrics=metrics,
-        )
+            return PipelineResult(
+                correlation_id=correlation_id,
+                risk_assessment=final.risk_assessment,
+                anomaly_report=final.anomaly_report,
+                diagnostic_result=final.diagnostic_result,
+                sop_context=final.sop_context,
+                action_plan=final.action_plan,
+                validation_result=final.validation_result,
+                routing_decision=final.routing_decision,
+                metrics=metrics,
+            )
+
+        if lf:
+            with lf.start_as_current_observation(
+                name="forge_pipeline",
+                as_type="agent",
+                input=log.model_dump(mode="json"),
+                metadata={"equipment_id": log.equipment_id, "correlation_id": correlation_id},
+            ) as _lf_root:
+                result = await _run_graph()
+                _lf_root.update(output={
+                    "risk_level": result.metrics.risk_level,
+                    "early_exit": result.metrics.early_exit,
+                    "has_anomaly": result.anomaly_report.has_anomaly if result.anomaly_report else None,
+                    "recommendation": result.validation_result.recommendation if result.validation_result else None,
+                    "grounding_score": result.validation_result.overall_grounding_score if result.validation_result else None,
+                })
+            lf.flush()
+        else:
+            result = await _run_graph()
+
+        return result

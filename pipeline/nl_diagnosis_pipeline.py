@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from agents.base import BaseAgent, ParseOutputError
 from agents.intent_extraction_agent import IntentExtractionAgent
 from core.config import get_settings
-from core.langfuse_client import get_langfuse, set_current_trace
+from core.langfuse_client import get_langfuse
 from core.logging import get_logger
 from models.sop_context import SOPChunk
 from models.user_query import ExtractedIntent, NLDiagnosisResult, UserQueryRequest
@@ -134,41 +134,45 @@ class NLDiagnosisPipeline:
         })
 
         lf = get_langfuse()
-        trace = None
-        if lf:
-            trace = lf.trace(
-                id=correlation_id,
-                name="nl_diagnosis_pipeline",
-                input={"query": request.query, "equipment_id": request.equipment_id},
+
+        async def _run_graph() -> tuple:
+            initial = _NLGraphState(
+                query=request.query,
+                correlation_id=correlation_id,
+                equipment_id_override=request.equipment_id,
             )
-            set_current_trace(trace)
+            raw: dict = await self._graph.ainvoke(initial)
+            final = _NLGraphState.model_validate(raw)
 
-        initial = _NLGraphState(
-            query=request.query,
-            correlation_id=correlation_id,
-            equipment_id_override=request.equipment_id,
-        )
-        raw: dict = await self._graph.ainvoke(initial)
-        final = _NLGraphState.model_validate(raw)
-
-        logger.info({
-            "event": "nl_diagnosis_complete",
-            "correlation_id": correlation_id,
-            "urgency": final.intent.urgency if final.intent else None,
-            "chunk_count": len(final.sop_chunks),
-        })
-
-        if trace:
-            trace.update(output={
+            logger.info({
+                "event": "nl_diagnosis_complete",
+                "correlation_id": correlation_id,
                 "urgency": final.intent.urgency if final.intent else None,
-                "diagnosis_length": len(final.diagnosis),
+                "chunk_count": len(final.sop_chunks),
             })
-            lf.flush()
 
-        return NLDiagnosisResult(
-            query=request.query,
-            intent=final.intent,
-            diagnosis=final.diagnosis,
-            related_sop_chunks=final.sop_chunks,
-            correlation_id=correlation_id,
-        )
+            return NLDiagnosisResult(
+                query=request.query,
+                intent=final.intent,
+                diagnosis=final.diagnosis,
+                related_sop_chunks=final.sop_chunks,
+                correlation_id=correlation_id,
+            ), final
+
+        if lf:
+            with lf.start_as_current_observation(
+                name="nl_diagnosis_pipeline",
+                as_type="agent",
+                input={"query": request.query, "equipment_id": request.equipment_id},
+                metadata={"correlation_id": correlation_id},
+            ) as _lf_root:
+                nl_result, final = await _run_graph()
+                _lf_root.update(output={
+                    "urgency": final.intent.urgency if final.intent else None,
+                    "diagnosis_length": len(final.diagnosis),
+                })
+            lf.flush()
+        else:
+            nl_result, _ = await _run_graph()
+
+        return nl_result

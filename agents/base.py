@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplat
 
 from core.config import get_settings
 from core.langchain_client import _BASE_SEED, get_chat_llm
-from core.langfuse_client import get_current_trace
+from core.langfuse_client import get_langfuse
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -61,12 +61,13 @@ class BaseAgent:
             chain = self._chain
 
         start = time.monotonic()
-        lf_trace = get_current_trace()
+        lf = get_langfuse()
         generation = None
 
-        if lf_trace:
-            generation = lf_trace.generation(
+        if lf:
+            generation = lf.start_observation(
                 name=self.__class__.__name__,
+                as_type="generation",
                 model=self.model or get_settings().ollama_chat_model,
                 input=user_message,
                 metadata={
@@ -80,7 +81,8 @@ class BaseAgent:
             result: dict = await chain.ainvoke({"user_message": user_message})
             elapsed_ms = round((time.monotonic() - start) * 1000)
             if generation:
-                generation.end(output=result, metadata={"latency_ms": elapsed_ms})
+                generation.update(output=result, metadata={"latency_ms": elapsed_ms})
+                generation.end()
             logger.info({
                 "event": "llm_call_success",
                 "correlation_id": correlation_id,
@@ -92,7 +94,8 @@ class BaseAgent:
             return result
         except Exception as exc:
             if generation:
-                generation.end(level="ERROR", status_message=str(exc))
+                generation.update(level="ERROR", status_message=str(exc))
+                generation.end()
             logger.warning({
                 "event": "llm_call_failed",
                 "correlation_id": correlation_id,
