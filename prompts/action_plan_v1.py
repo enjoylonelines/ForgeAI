@@ -42,8 +42,11 @@ _FAILURE_TYPE_ADDENDUM: dict[str, str] = {
     "TWF": (
         "FAILURE TYPE CONTEXT — Tool Wear Failure (TWF):\n"
         "The root cause is excessive tool wear (>200 min). Prioritize immediate tool replacement.\n"
-        "Steps must include: (1) machine stop, (2) tool inspection and replacement, "
-        "(3) verification of cutting parameters, (4) post-replacement run test.\n"
+        "Steps must include: (1) stop equipment after current cycle completes, "
+        "(2) visual tool inspection and tool measurement using a tool presetter, "
+        "(3) install new tool and reset tool length offset and tool life counter, "
+        "(4) trial machining on scrap material and quality check.\n"
+        "Use VERBATIM wording from the cited SOP chunk for each step action.\n"
     ),
     "HDF": (
         "FAILURE TYPE CONTEXT — Heat Dissipation Failure (HDF):\n"
