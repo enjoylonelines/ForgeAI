@@ -78,6 +78,7 @@ async def test_validator_empty_steps(sample_sop_context, correlation_id):
     agent = HallucinationValidatorAgent()
     result = await agent.run(empty_plan, sample_sop_context, correlation_id)
 
-    assert result.overall_grounding_score == 1.0
-    assert result.recommendation == "APPROVE"
-    assert result.is_valid is True
+    assert result.overall_grounding_score == 0.0
+    assert result.recommendation == "REJECT"
+    assert result.is_valid is False
+    assert result.explanation is not None

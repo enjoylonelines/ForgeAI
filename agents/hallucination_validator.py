@@ -38,14 +38,16 @@ class HallucinationValidatorAgent(BaseAgent):
         threshold = settings.grounding_score_threshold
 
         if not action_plan.steps:
+            self._log("validator_empty_plan", correlation_id, equipment_id=action_plan.equipment_id)
             return ValidationResult(
                 equipment_id=action_plan.equipment_id,
                 validated_at=datetime.now(timezone.utc),
-                overall_grounding_score=1.0,
-                is_valid=True,
+                overall_grounding_score=0.0,
+                is_valid=False,
                 step_validations=[],
                 ungrounded_steps=[],
-                recommendation="APPROVE",
+                recommendation="REJECT",
+                explanation="Action plan has no steps — cannot verify grounding.",
                 correlation_id=correlation_id,
             )
 
