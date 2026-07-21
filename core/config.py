@@ -22,6 +22,8 @@ class Settings:
     chroma_collection_name: str = field(default_factory=lambda: os.getenv("CHROMA_COLLECTION_NAME", "sop_documents"))
 
     grounding_score_threshold: float = field(default_factory=lambda: float(os.getenv("GROUNDING_SCORE_THRESHOLD", "0.75")))
+    grounding_approve_threshold: float = field(default_factory=lambda: float(os.getenv("GROUNDING_APPROVE_THRESHOLD", "0.85")))
+    grounding_review_threshold: float = field(default_factory=lambda: float(os.getenv("GROUNDING_REVIEW_THRESHOLD", "0.60")))
     chunk_size: int = field(default_factory=lambda: int(os.getenv("CHUNK_SIZE", "1024")))
     chunk_overlap: int = field(default_factory=lambda: int(os.getenv("CHUNK_OVERLAP", "200")))
     top_k_retrieval: int = field(default_factory=lambda: int(os.getenv("TOP_K_RETRIEVAL", "5")))

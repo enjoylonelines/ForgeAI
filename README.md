@@ -728,7 +728,9 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 | `OLLAMA_CHAT_MODEL` | `qwen2.5:7b` | 대화용 LLM |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | 임베딩 모델 |
 | `CHROMA_PERSIST_DIR` | `./data/chroma` | ChromaDB 저장 경로 |
-| `GROUNDING_SCORE_THRESHOLD` | `0.75` | APPROVE/REVIEW 분기 기준 |
+| `GROUNDING_SCORE_THRESHOLD` | `0.75` | 단계별 근거 있음 판정 기준 |
+| `GROUNDING_APPROVE_THRESHOLD` | `0.85` | APPROVE 판정 기준 (전체 평균) |
+| `GROUNDING_REVIEW_THRESHOLD` | `0.60` | REVIEW/REJECT 경계 |
 | `CHUNK_SIZE` | `1024` | RAG 청크 크기 (characters) |
 | `CHUNK_OVERLAP` | `200` | 청크 간 겹침 크기 |
 | `TOP_K_RETRIEVAL` | `5` | ChromaDB 상위 k 검색 수 |

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime, timezone
 
 from agents.base import BaseAgent, MaxRetriesExceededError
@@ -48,7 +49,13 @@ class HallucinationValidatorAgent(BaseAgent):
                 correlation_id=correlation_id,
             )
 
+        # chunk_id → 청크 전체 임베딩 (ChromaDB 저장값)
         sop_embeddings: dict[str, list[float]] = {}
+        # chunk_id → 문장 단위 임베딩 목록 (인용된 청크에 대해 추가 계산)
+        sop_sentence_embeddings: dict[str, list[list[float]]] = {}
+
+        chunk_text_map: dict[str, str] = {c.chunk_id: c.text for c in sop_context.chunks}
+
         if sop_context.chunks:
             chunk_ids = [c.chunk_id for c in sop_context.chunks]
             try:
@@ -62,11 +69,24 @@ class HallucinationValidatorAgent(BaseAgent):
                     "error": str(exc),
                 })
 
+        # step.sop_reference가 있는 인용 청크에 대해 문장 단위 임베딩을 미리 계산
+        cited_chunk_ids = {
+            step.sop_reference
+            for step in action_plan.steps
+            if step.sop_reference and step.sop_reference in chunk_text_map
+        }
         embeddings_client = get_embeddings()
+        for cid in cited_chunk_ids:
+            sentences = _split_sentences(chunk_text_map[cid])
+            if sentences:
+                vecs = await embeddings_client.aembed_documents(sentences)
+                sop_sentence_embeddings[cid] = vecs
+
         step_validations: list[StepValidation] = []
         for step in action_plan.steps:
             step_vec = await embeddings_client.aembed_query(step.action)
 
+            # 1) 청크 단위 비교 (기존 방식)
             best_score = 0.0
             best_chunk_id: str | None = None
             for chunk_id, sop_vec in sop_embeddings.items():
@@ -74,6 +94,14 @@ class HallucinationValidatorAgent(BaseAgent):
                 if score > best_score:
                     best_score = score
                     best_chunk_id = chunk_id
+
+            # 2) 인용 청크 문장 단위 비교 — 짧은 지시문과 직접 매칭
+            if step.sop_reference and step.sop_reference in sop_sentence_embeddings:
+                for sent_vec in sop_sentence_embeddings[step.sop_reference]:
+                    score = _cosine_similarity(step_vec, sent_vec)
+                    if score > best_score:
+                        best_score = score
+                        best_chunk_id = step.sop_reference
 
             step_validations.append(StepValidation(
                 step_number=step.step_number,
@@ -98,9 +126,9 @@ class HallucinationValidatorAgent(BaseAgent):
             )
             obs.end()
 
-        if overall >= 0.85:
+        if overall >= settings.grounding_approve_threshold:
             recommendation = "APPROVE"
-        elif overall >= 0.60:
+        elif overall >= settings.grounding_review_threshold:
             recommendation = "REVIEW"
         else:
             recommendation = "REJECT"
@@ -157,3 +185,9 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def _split_sentences(text: str, min_len: int = 15) -> list[str]:
+    """마침표·느낌표·물음표 기준으로 문장 분할. 너무 짧은 조각은 제거."""
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    return [p.strip() for p in parts if len(p.strip()) >= min_len]
