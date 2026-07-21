@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>유호범 포트폴리오 — 운영 안정성 중심</title>
+<style>
+/* ============ 단일 톤 디자인 시스템 (slate monochrome) ============ */
+:root{
+  --t-950:#0f172a; --t-900:#1e293b; --t-800:#334155; --t-700:#475569;
+  --t-600:#64748b; --t-500:#94a3b8; --t-400:#cbd5e1; --t-300:#e2e8f0;
+  --t-200:#eef2f6; --t-100:#f5f7fa; --t-50:#fafbfc; --white:#ffffff;
+  --accent:#334155;            /* 단일 강조색 = 같은 톤의 진한 슬레이트 */
+  --line:#e2e8f0;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.05);
+  --maxw:880px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Pretendard","Noto Sans KR",sans-serif;
+  color:var(--t-900); background:var(--t-100); line-height:1.72;
+  font-size:16px; -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+
+/* ============ Nav ============ */
+nav{
+  position:sticky; top:0; z-index:50; background:rgba(245,247,250,.85);
+  backdrop-filter:saturate(180%) blur(12px); border-bottom:1px solid var(--line);
+}
+nav .wrap{display:flex; align-items:center; gap:8px; height:56px; overflow-x:auto}
+nav .brand{font-weight:700; font-size:15px; color:var(--t-950); margin-right:auto; white-space:nowrap}
+nav a{
+  font-size:13px; color:var(--t-600); text-decoration:none; padding:6px 12px;
+  border-radius:999px; white-space:nowrap; transition:.15s;
+}
+nav a:hover{background:var(--t-300); color:var(--t-950)}
+
+/* ============ Hero ============ */
+header.hero{padding:72px 0 48px; background:linear-gradient(180deg,var(--white),var(--t-100))}
+.kicker{
+  display:inline-block; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--t-600); font-weight:600; padding:5px 12px; border:1px solid var(--line);
+  border-radius:999px; background:var(--white); margin-bottom:20px;
+}
+header.hero h1{font-size:40px; line-height:1.2; letter-spacing:-.02em; color:var(--t-950); font-weight:800}
+header.hero .role{font-size:17px; color:var(--t-700); font-weight:600; margin-top:10px}
+header.hero p.lead{font-size:16px; color:var(--t-700); margin-top:20px; max-width:680px}
+.contact{display:flex; flex-wrap:wrap; gap:10px; margin-top:26px}
+.contact span,.contact a{
+  font-size:13px; color:var(--t-700); background:var(--white); border:1px solid var(--line);
+  padding:7px 14px; border-radius:999px; text-decoration:none; transition:.15s;
+}
+.contact a:hover{background:var(--t-900); color:#fff; border-color:var(--t-900)}
+
+/* ============ Sections ============ */
+section{padding:46px 0; border-top:1px solid var(--line)}
+.sec-label{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--t-500); font-weight:700}
+h2{font-size:26px; letter-spacing:-.01em; color:var(--t-950); font-weight:800; margin:8px 0 6px}
+h3{font-size:18px; color:var(--t-900); font-weight:700; margin:26px 0 10px}
+h4{font-size:14px; color:var(--t-700); font-weight:700; letter-spacing:.02em; margin:18px 0 8px; text-transform:uppercase}
+p{margin:12px 0; color:var(--t-800)}
+.muted{color:var(--t-600)}
+
+/* ============ Card UI (일정한 카드 규격) ============ */
+.card{
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius);
+  padding:26px 28px; box-shadow:var(--shadow); margin:18px 0;
+}
+.card.flush{padding:0; overflow:hidden}
+.meta{
+  display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 4px;
+}
+.tag{
+  font-size:12px; color:var(--t-700); background:var(--t-200); border:1px solid var(--line);
+  padding:4px 11px; border-radius:8px; font-weight:500;
+}
+.tag.strong{background:var(--t-900); color:var(--white); border-color:var(--t-900); font-weight:600}
+
+/* project header bar */
+.proj-id{
+  display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+}
+.proj-id .num{
+  font-size:13px; font-weight:800; color:var(--white); background:var(--t-900);
+  width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+}
+.proj-id h3{margin:0; font-size:20px}
+
+/* summary grid */
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+.minicard{background:var(--white); border:1px solid var(--line); border-radius:12px; padding:18px 20px}
+.minicard .name{font-weight:700; color:var(--t-950); font-size:15px}
+.minicard .desc{font-size:13.5px; color:var(--t-600); margin-top:6px}
+
+/* metric stats */
+.stats{display:flex; flex-wrap:wrap; gap:12px; margin:16px 0}
+.stat{
+  flex:1 1 150px; background:var(--t-100); border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+}
+.stat .v{font-size:22px; font-weight:800; color:var(--t-950); letter-spacing:-.01em}
+.stat .v small{font-size:13px; color:var(--t-500); font-weight:600}
+.stat .k{font-size:12.5px; color:var(--t-600); margin-top:4px}
+
+/* tables */
+.tbl{width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px}
+.tbl th,.tbl td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line)}
+.tbl th{background:var(--t-100); color:var(--t-700); font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.03em}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .hl{font-weight:800; color:var(--t-950)}
+.badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:6px; display:inline-block}
+.badge.adopt{background:var(--t-900); color:var(--white)}
+.badge.review{background:var(--t-200); color:var(--t-700); border:1px solid var(--line)}
+
+/* honest / blank callout */
+.note{
+  border-left:3px solid var(--t-400); background:var(--t-100); border-radius:0 10px 10px 0;
+  padding:14px 18px; margin:16px 0; font-size:14px; color:var(--t-700);
+}
+.note b{color:var(--t-900)}
+.blank{
+  font-family:"SF Mono",ui-monospace,Menlo,monospace; background:var(--t-200);
+  border:1px dashed var(--t-500); border-radius:6px; padding:1px 8px; font-size:12.5px; color:var(--t-700);
+}
+
+/* decision list */
+ul.clean{list-style:none; margin:10px 0}
+ul.clean li{position:relative; padding:7px 0 7px 22px; color:var(--t-800); font-size:14.5px; border-bottom:1px dashed var(--t-300)}
+ul.clean li:last-child{border-bottom:none}
+ul.clean li:before{content:""; position:absolute; left:2px; top:15px; width:7px; height:7px; border-radius:2px; background:var(--t-600)}
+
+/* ============ Flowchart (SVG) ============ */
+.flow-wrap{background:var(--white); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow); margin:18px 0; overflow:hidden}
+.flow-wrap svg{display:block; width:100%; height:auto; max-width:672px; margin:0 auto}
+.flow-cap{font-size:13px; color:var(--t-600); margin-top:10px; text-align:center}
+.legend{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-top:12px; font-size:12px; color:var(--t-600)}
+.legend i{display:inline-block; width:13px; height:13px; border-radius:3px; vertical-align:-2px; margin-right:5px}
+svg .proc{fill:var(--white); stroke:var(--t-700); stroke-width:1.5}
+svg .dec{fill:var(--t-100); stroke:var(--t-800); stroke-width:1.5}
+svg .term{fill:var(--t-900); stroke:var(--t-900)}
+svg .lbl{fill:var(--t-900); font-size:12.5px; font-weight:600; font-family:inherit}
+svg .lbl.sm{font-size:10.5px; font-weight:500; fill:var(--t-600)}
+svg .lbl.w{fill:var(--white)}
+svg .edge{stroke:var(--t-500); stroke-width:1.5; fill:none}
+svg .elbl{fill:var(--t-600); font-size:10.5px; font-weight:600; font-family:inherit}
+
+footer{padding:48px 0 64px; color:var(--t-500); font-size:13px; text-align:center; border-top:1px solid var(--line)}
+
+/* ============ PDF export button ============ */
+.pdf-btn{
+  position:fixed; right:20px; bottom:20px; z-index:100;
+  background:var(--t-900); color:#fff; border:none; border-radius:999px;
+  padding:13px 22px; font-size:13.5px; font-weight:600; cursor:pointer;
+  box-shadow:0 6px 20px rgba(15,23,42,.18); font-family:inherit;
+}
+.pdf-btn:hover{background:var(--t-950)}
+.pdf-btn:active{transform:translateY(1px)}
+
+/* ============ Print / PDF layout ============ */
+@media print{
+  nav,.pdf-btn{display:none !important}
+  body{background:#fff}
+  .wrap{max-width:none; padding:0 8mm}
+  header.hero{padding:14px 0; background:#fff}
+  section{padding:14px 0; border-top:1px solid var(--t-300)}
+  .card,.flow-wrap,.minicard,.stat{box-shadow:none !important}
+  .card,.flow-wrap,.minicard,table,.stats{break-inside:avoid}
+  .flow-wrap svg{width:auto; max-height:232mm; display:block; margin:0 auto}
+  h1,h2,h3,h4{break-after:avoid}
+  a{text-decoration:none}
+  @page{size:A4; margin:12mm}
+}
+</style>
+</head>
+<body>
+
+<button class="pdf-btn" onclick="window.print()">⤓ PDF 내보내기</button>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">유호범 · Backend / Local LLM AI</span>
+    <a href="#forgeai">ForgeAI</a>
+    <a href="#flow">의사결정 흐름</a>
+    <a href="#adr">설계 결정</a>
+    <a href="#landed">Landed</a>
+    <a href="#albafit">AlbaFit</a>
+    <a href="#inventory">재고관리</a>
+    <a href="#fit">직무 연결</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">Portfolio · 운영 안정성 중심</span>
+    <h1>유호범</h1>
+    <div class="role">Backend / Local LLM AI Developer</div>
+    <p class="lead">"같은 상황에도 답이 달라질 수 있는" AI의 약점을 다스려, 반도체·제조 공정 현장이 믿고 쓸 수 있는 운영 시스템으로 설계하는 개발자입니다. 확실한 판단은 자동으로, 애매한 판단은 사람이 확인하도록 나누고, 모든 판단의 근거를 끝까지 되짚을 수 있게 만드는 데 집중합니다. 이 문서는 "무엇을 만들었는가"보다 "판단을 어떻게 나누고 어떻게 안정적으로 운영했는가"를 중심으로 정리했습니다.</p>
+    <div class="contact">
+      <a href="mailto:hobeom5022@naver.com">✉ hobeom5022@naver.com</a>
+      <span>☎ 010-4799-5022</span>
+      <a href="https://github.com/enjoylonelines" target="_blank" rel="noopener">⌥ github.com/enjoylonelines</a>
+    </div>
+  </div>
+</header>
+
+<!-- ===== Selected Projects ===== -->
+<section>
+  <div class="wrap">
+    <div class="sec-label">Selected Projects</div>
+    <h2>대표 프로젝트</h2>
+    <p class="muted">각 프로젝트는 “무엇을 만들었는가”보다 “어떤 판단을 왜 그렇게 나누었는가”를 기준으로 서술했습니다.</p>
+    <div class="grid2">
+      <div class="minicard">
+        <div class="name">ForgeAI</div>
+        <div class="desc">제조 설비 예지보전 멀티에이전트 RAG. 규칙 기반 FDC와 LLM RCA를 분리해 추적 가능한 판단 흐름으로 구성. 75개 테스트.</div>
+      </div>
+      <div class="minicard">
+        <div class="name">Landed</div>
+        <div class="desc">채용공고 분석·지원관리 AI 에이전트. 도메인 상태 계층과 AI 실행 계층을 서비스 경계로 분리. Backend 58 · Python 51 · Frontend 11 테스트.</div>
+      </div>
+      <div class="minicard">
+        <div class="name">AlbaFit</div>
+        <div class="desc">에브리타임 연동 알바 매칭 + 회의록→이슈 협업 자동화. 메인 페이지 338줄→94줄로 축소.</div>
+      </div>
+      <div class="minicard">
+        <div class="name">제품 재고관리</div>
+        <div class="desc">수기·엑셀 재고 업무를 웹 흐름으로 전환. 85+ SKU, 약 10명 사용자, 입출고 API 호출 N회→1회.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 01 ForgeAI ===== -->
+<section id="forgeai">
+  <div class="wrap">
+    <div class="sec-label">Project 01 · AI / LLM</div>
+    <h2>ForgeAI — 제조 설비 예지보전 멀티에이전트 RAG 시스템</h2>
+    <div class="meta">
+      <span class="tag">2026.06</span><span class="tag">개인 프로젝트</span>
+      <span class="tag">Python</span><span class="tag">LangGraph</span><span class="tag">RAG</span>
+      <span class="tag">Rule Engine</span><span class="tag">Ollama(qwen2.5:7b)</span>
+      <span class="tag">ChromaDB</span><span class="tag">C++ dry-run adapter</span><span class="tag">pytest</span>
+    </div>
+
+    <div class="card">
+      <h4>프로젝트 목적</h4>
+      <p>제조 설비 센서 로그를 기반으로 고장 위험을 평가하고, SOP 근거를 찾아 조치 계획을 생성·검증하는 예지보전 시스템입니다. 핵심은 LLM이 모든 판단을 대신하는 구조가 아니라, “센서 이상을 탐지하는 일”과 “왜 이상인지·어떻게 대응할지를 설명하는 일”을 서로 다른 문제로 보고, 위험 판단·근거 검색·계획 검증·실행 전 확인을 분리해 추적 가능한 흐름으로 만드는 것이었습니다. 외부 API 없이 온프레미스 LLM만으로 완결하는 폐쇄망 대응을 전제로 설계했습니다.</p>
+    </div>
+
+    <div class="card">
+      <h4>의사결정 과정</h4>
+      <p>가장 경계한 지점은 “그럴듯한 조치 계획”이 곧 “실행 가능한 조치”처럼 보이는 문제였습니다. 그래서 수ms 안에 결론이 나야 하는 임계값 비교와 고장 모드 분류(TWF·HDF·PWF·OSF)는 결정론적 Rule Engine이 먼저 담당하게 했습니다. AI4I 2020 기준 약 96.6%를 차지하는 정상(SAFE) 케이스는 LLM을 한 번도 호출하지 않고 조기 종료시켜, 처리량이 LLM 지연에 묶이지 않도록 했습니다.</p>
+      <p>이상이 감지된 경우에만 LLM 에이전트가 복수 센서 조합을 해석하고, SOP RAG가 근거를 검색합니다. 근거가 충분할 때만 조치 계획을 생성하고, 마지막에는 임베딩 코사인 유사도로 각 단계가 실제 SOP 청크에 근거하는지를 검증합니다. 검증을 통과하지 못하면 계획을 그대로 내보내지 않고 재생성하거나 검토 대상으로 보냅니다. C++ control adapter는 dry-run 전용으로 두어, AI 결과가 실제 제어 흐름과 섞이기 전에 한 번 더 걸러지게 했습니다.</p>
+    </div>
+
+    <!-- ===== Decision flowchart ===== -->
+    <div id="flow"></div>
+    <h3>의사결정 기반 파이프라인</h3>
+    <p class="muted">각 분기는 “이 판단에 언어 이해가 필요한가 / 결정론으로 충분한가”를 기준으로 나뉩니다. 마름모는 판단 분기, 사각형은 처리 단계, 진한 박스는 종료 지점입니다.</p>
+    <div class="flow-wrap">
+      <svg viewBox="0 0 672 1058" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="ForgeAI 의사결정 파이프라인">
+        <defs>
+          <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+          </marker>
+        </defs>
+
+        <!-- Input -->
+        <rect class="proc" x="190" y="20" width="280" height="46" rx="10"/>
+        <text class="lbl" x="330" y="40" text-anchor="middle">EquipmentLog</text>
+        <text class="lbl sm" x="330" y="56" text-anchor="middle">센서 5종 + 태그</text>
+        <line class="edge" x1="330" y1="66" x2="330" y2="92" marker-end="url(#arrow)"/>
+
+        <!-- Rule engine -->
+        <rect class="proc" x="180" y="92" width="300" height="56" rx="10"/>
+        <text class="lbl" x="330" y="115" text-anchor="middle">Rule Engine · assess_risk()</text>
+        <text class="lbl sm" x="330" y="133" text-anchor="middle">결정론적 FDC · 수ms · LLM 0회</text>
+        <line class="edge" x1="330" y1="148" x2="330" y2="174" marker-end="url(#arrow)"/>
+
+        <!-- Decision 1: risk level -->
+        <path class="dec" d="M330,174 L450,230 L330,286 L210,230 Z"/>
+        <text class="lbl" x="330" y="226" text-anchor="middle">위험 수준?</text>
+        <text class="lbl sm" x="330" y="244" text-anchor="middle">SAFE / WARN / CRIT</text>
+
+        <!-- SAFE early exit -->
+        <line class="edge" x1="450" y1="230" x2="536" y2="230" marker-end="url(#arrow)"/>
+        <text class="elbl" x="494" y="222" text-anchor="middle">SAFE · ~96.6%</text>
+        <rect class="term" x="540" y="207" width="116" height="46" rx="10"/>
+        <text class="lbl w" x="598" y="228" text-anchor="middle">조기 종료</text>
+        <text class="lbl sm w" x="598" y="244" text-anchor="middle" style="fill:#cbd5e1">LLM 0회</text>
+
+        <!-- to perception -->
+        <line class="edge" x1="330" y1="286" x2="330" y2="314" marker-end="url(#arrow)"/>
+        <text class="elbl" x="418" y="302" text-anchor="middle">WARNING·CRITICAL</text>
+
+        <!-- Perception agent -->
+        <rect class="proc" x="190" y="316" width="280" height="54" rx="10"/>
+        <text class="lbl" x="330" y="339" text-anchor="middle">PerceptionAgent</text>
+        <text class="lbl sm" x="330" y="357" text-anchor="middle">센서 조합 해석 · LLM 1회</text>
+        <line class="edge" x1="330" y1="370" x2="330" y2="394" marker-end="url(#arrow)"/>
+
+        <!-- Decision 2: anomaly? -->
+        <path class="dec" d="M330,394 L446,446 L330,498 L214,446 Z"/>
+        <text class="lbl" x="330" y="451" text-anchor="middle">이상 있음?</text>
+
+        <!-- no -> end -->
+        <line class="edge" x1="446" y1="446" x2="536" y2="446" marker-end="url(#arrow)"/>
+        <text class="elbl" x="491" y="438" text-anchor="middle">이상 없음</text>
+        <rect class="term" x="540" y="423" width="116" height="46" rx="10"/>
+        <text class="lbl w" x="598" y="451" text-anchor="middle">종료</text>
+
+        <!-- to diagnostic -->
+        <line class="edge" x1="330" y1="498" x2="330" y2="526" marker-end="url(#arrow)"/>
+        <text class="elbl" x="404" y="516" text-anchor="middle">이상 있음</text>
+
+        <!-- Diagnostic -->
+        <rect class="proc" x="180" y="528" width="300" height="56" rx="10"/>
+        <text class="lbl" x="330" y="551" text-anchor="middle">DiagnosticAgent · ReAct</text>
+        <text class="lbl sm" x="330" y="569" text-anchor="middle">bind_tools() · 최대 5회 루프</text>
+        <line class="edge" x1="330" y1="584" x2="330" y2="608" marker-end="url(#arrow)"/>
+
+        <!-- SOP RAG -->
+        <rect class="proc" x="180" y="610" width="300" height="56" rx="10"/>
+        <text class="lbl" x="330" y="633" text-anchor="middle">SOPRAGAgent · ChromaDB</text>
+        <text class="lbl sm" x="330" y="651" text-anchor="middle">failure_type 필터 · LLM 0회</text>
+        <line class="edge" x1="330" y1="666" x2="330" y2="692" marker-end="url(#arrow)"/>
+
+        <!-- Decision 3: grounded enough? -->
+        <path class="dec" d="M330,692 L452,750 L330,808 L208,750 Z"/>
+        <text class="lbl" x="330" y="746" text-anchor="middle">근거 충분?</text>
+        <text class="lbl sm" x="330" y="764" text-anchor="middle">관련 SOP 검색됨</text>
+
+        <!-- insufficient -> review -->
+        <line class="edge" x1="208" y1="750" x2="126" y2="750" marker-end="url(#arrow)"/>
+        <text class="elbl" x="166" y="742" text-anchor="middle">부족</text>
+        <rect class="proc" x="14" y="727" width="110" height="46" rx="10" style="stroke-dasharray:4 3"/>
+        <text class="lbl" x="69" y="748" text-anchor="middle">검토 대상</text>
+        <text class="lbl sm" x="69" y="764" text-anchor="middle">계획 보류</text>
+
+        <!-- to action plan -->
+        <line class="edge" x1="330" y1="808" x2="330" y2="836" marker-end="url(#arrow)"/>
+        <text class="elbl" x="366" y="826" text-anchor="middle">충분</text>
+
+        <!-- Action plan -->
+        <rect class="proc" x="190" y="838" width="280" height="54" rx="10"/>
+        <text class="lbl" x="330" y="861" text-anchor="middle">ActionPlanAgent</text>
+        <text class="lbl sm" x="330" y="879" text-anchor="middle">SOP 기반 조치계획 · LLM 1회</text>
+        <line class="edge" x1="330" y1="892" x2="330" y2="916" marker-end="url(#arrow)"/>
+
+        <!-- Validator decision -->
+        <path class="dec" d="M330,918 L458,976 L330,1034 L202,976 Z"/>
+        <text class="lbl" x="330" y="972" text-anchor="middle">근거 검증</text>
+        <text class="lbl sm" x="330" y="990" text-anchor="middle">코사인 유사도</text>
+
+        <!-- reject retry loop back to action plan -->
+        <path class="edge" d="M458,976 C548,962 548,879 472,865" marker-end="url(#arrow)" style="stroke-dasharray:5 4"/>
+        <text class="elbl" x="556" y="1004" text-anchor="middle">REJECT → 재시도</text>
+
+        <!-- approve/review -> result -->
+        <line class="edge" x1="202" y1="976" x2="108" y2="976"/>
+        <line class="edge" x1="108" y1="976" x2="108" y2="894" marker-end="url(#arrow)"/>
+        <text class="elbl" x="120" y="1004" text-anchor="middle">APPROVE · REVIEW</text>
+        <rect class="term" x="16" y="846" width="168" height="46" rx="10"/>
+        <text class="lbl w" x="100" y="867" text-anchor="middle">PipelineResult</text>
+        <text class="lbl sm w" x="100" y="883" text-anchor="middle" style="fill:#cbd5e1">+ dry-run 확인</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:#ffffff;border:1.5px solid #475569"></i>처리 단계</span>
+        <span><i style="background:#f1f5f9;border:1.5px solid #334155;transform:rotate(45deg)"></i>판단 분기</span>
+        <span><i style="background:#1e293b"></i>종료 지점</span>
+        <span><i style="background:#fff;border:1.5px dashed #64748b"></i>보류·재시도</span>
+      </div>
+      <div class="flow-cap">결정론으로 충분한 판단은 Rule Engine·임베딩 유사도가, 언어 이해가 필요한 판단만 LLM이 담당합니다.</div>
+    </div>
+
+    <div class="card">
+      <h4>구현 근거</h4>
+      <ul class="clean">
+        <li>Rule Engine을 1차 판단 계층으로 두어 센서 기반 위험 판단의 재현성과 감사 가능성을 확보했습니다.</li>
+        <li>SOP RAG는 조치 계획의 근거를 제공하는 역할로 제한해 LLM의 임의 판단 범위를 줄였습니다.</li>
+        <li>LangGraph StateGraph로 위험 평가·근거 검색·계획 생성·검증 단계를 분리하고 조건 분기와 재시도 루프를 선언적으로 표현했습니다.</li>
+        <li>HallucinationValidator가 각 조치 단계를 SOP 청크와 코사인 유사도로 비교해 근거 강도를 수치화합니다.</li>
+        <li>C++ dry-run adapter를 연결해 조치 계획을 실행 전 검증하고, 실제 하드웨어 write는 차단했습니다.</li>
+      </ul>
+    </div>
+
+    <!-- ===== Measured results ===== -->
+    <h3>검증 및 결과 <span class="muted" style="font-size:14px;font-weight:500">— 측정값 기준</span></h3>
+    <div class="stats">
+      <div class="stat"><div class="v">75<small> 개</small></div><div class="k">pytest 단위·통합 테스트 (11개 파일)</div></div>
+      <div class="stat"><div class="v">0.417 → 0.730</div><div class="k">TWF 요청 시 1위 SOP 검색 유사도</div></div>
+      <div class="stat"><div class="v">0.615 → 0.731</div><div class="k">grounding_score (RAG 개선 4회)</div></div>
+      <div class="stat"><div class="v">~96.6%</div><div class="k">SAFE 조기 종료 비율 (LLM 호출 생략)</div></div>
+    </div>
+
+    <div class="card">
+      <h4>ML 베이스라인 실측 — AI4I 2020</h4>
+      <p class="muted">10,000행, test_size=0.2, stratify=y. 피처 엔지니어링·튜닝 없는 raw 베이스라인. <code>scripts/baseline_classifier.py</code>로 재현 가능.</p>
+      <table class="tbl">
+        <thead><tr><th>모델</th><th>PR-AUC</th><th>고장 Recall</th><th>고장 Precision</th><th>F1</th></tr></thead>
+        <tbody>
+          <tr><td>Dummy (항상 정상)</td><td>0.034</td><td>0.000</td><td>0.000</td><td>0.000</td></tr>
+          <tr><td>Random Forest</td><td>0.783</td><td>0.721</td><td>0.766</td><td>0.742</td></tr>
+          <tr><td class="hl">XGBoost</td><td class="hl">0.830</td><td class="hl">0.779</td><td>0.747</td><td>0.763</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">“항상 정상” Dummy가 Accuracy 96.6%를 내지만 고장 Recall 0.000입니다. 불균형(고장 3.39%) 환경에서 Accuracy·ROC-AUC를 배제하고 PR-AUC와 고장 Recall을 헤드라인 지표로 택한 이유입니다 (ADR-003).</p>
+    </div>
+
+    <!-- ===== Improvements / quantified verification ===== -->
+    <h3>개선 작업과 정량 검증 <span class="muted" style="font-size:14px;font-weight:500">— 측정값은 빈칸에 채워 넣습니다</span></h3>
+    <div class="card">
+      <ul class="clean">
+        <li><b>운영점(operating point) 설정</b> — Precision-Recall 곡선 위에서 현장 FN:FP 비용 가정을 반영해 운영점을 고장 Recall ≥ <span class="blank">[___]</span> 지점으로 설정했습니다. 해당 지점의 Precision은 <span class="blank">[___]</span>, test셋(2,000건) 기준 미탐(FN) 절대 수는 <span class="blank">[___]</span>건입니다 (ADR-003).</li>
+        <li><b>확률 보정(calibration)</b> — Platt scaling으로 예측 확률을 보정해 ECE(Expected Calibration Error)를 <span class="blank">[___]</span>에서 <span class="blank">[___]</span>로 낮췄고, reliability diagram으로 예측 확률과 실제 고장 빈도의 정합을 확인했습니다 (ADR-004).</li>
+        <li><b>SECOM 반도체 공정 일반화</b> — 590개 피처를 결측·분산 기준으로 446개로 정리하고 시간순 분할로 베이스라인을 측정한 뒤, 피처 중요도 상위 N개 선택과 임계값 조정으로 불량 탐지 성능을 PR-AUC <span class="blank">[___]</span> → <span class="blank">[___]</span>, 고장 Recall <span class="blank">[___]</span> → <span class="blank">[___]</span>로 끌어올렸습니다 (ADR-001).</li>
+        <li><b>grounding_score 개선</b> — cited chunk 직접 비교 방식으로 근거 검증을 정교화해 평균 grounding_score를 <span class="blank">[___]</span>에서 <span class="blank">[___]</span>로 높였고, APPROVE 기준(0.85)을 통과하는 비율을 <span class="blank">[___]</span>%까지 끌어올렸습니다.</li>
+        <li><b>Provenance 감사 인터페이스</b> — correlation_id 하나로 센서값·모델 버전·임계값·SOP 청크를 단일 조회하는 감사 인터페이스를 구현해, SOP 청크별 인용 횟수 Top-<span class="blank">[___]</span>를 집계할 수 있게 했습니다 (ADR-007).</li>
+      </ul>
+    </div>
+
+    <!-- ===== ADR index ===== -->
+    <div id="adr"></div>
+    <h3>핵심 설계 결정 인덱스 (ADR)</h3>
+    <div class="card">
+      <table class="tbl">
+        <thead><tr><th>ADR</th><th>결정</th><th>상태</th></tr></thead>
+        <tbody>
+          <tr><td>ADR-001</td><td>검증 데이터 AI4I 유지 + SECOM 별도 베이스라인</td><td><span class="badge review">검토중</span></td></tr>
+          <tr><td>ADR-002</td><td>분할 방식 — AI4I stratify / SECOM 시간순</td><td><span class="badge review">부분 채택</span></td></tr>
+          <tr><td>ADR-003</td><td>평가지표 PR-AUC + 고장 Recall, accuracy 배제</td><td><span class="badge adopt">채택</span></td></tr>
+          <tr><td>ADR-004</td><td>확률 보정 도입 여부·방식</td><td><span class="badge review">검토중</span></td></tr>
+          <tr><td>ADR-005</td><td>예측은 고전 ML / LLM은 RCA·운영 레이어 분리</td><td><span class="badge adopt">채택</span></td></tr>
+          <tr><td>ADR-006</td><td>RAG 원본 문서와 벡터 분리로 모델 교체 흡수</td><td><span class="badge adopt">채택</span></td></tr>
+          <tr><td>ADR-007</td><td>Provenance / lineage 기록 구조</td><td><span class="badge review">검토중</span></td></tr>
+        </tbody>
+      </table>
+      <p class="muted">설계 의도를 ADR로 남긴 이유는, “무엇을 했는가”만큼 “무엇을 포기했고 왜 그 트레이드오프를 택했는가”가 판단의 증거이기 때문입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 02 Landed ===== -->
+<section id="landed">
+  <div class="wrap">
+    <div class="sec-label">Project 02 · Backend</div>
+    <h2>Landed — 채용공고 분석 및 지원관리 AI 에이전트 서비스</h2>
+    <div class="meta">
+      <span class="tag">2026.04 ~ 현재</span><span class="tag">Backend 1명</span>
+      <span class="tag">Spring Boot</span><span class="tag">JPA · QueryDSL</span><span class="tag">FastAPI</span>
+      <span class="tag">gRPC</span><span class="tag">Kafka</span><span class="tag">Redis</span><span class="tag">RAG · LangGraph</span><span class="tag">SSE</span>
+    </div>
+    <div class="card">
+      <h4>의사결정 과정</h4>
+      <p>채용공고 파싱·브리핑·피드백은 지연이 길어질 수 있는 AI 작업인 반면, 지원 상태·마감일·사용자 데이터는 빠르고 일관되게 관리되어야 하는 도메인 상태입니다. 두 흐름을 같은 요청에 묶으면 AI 지연이 도메인 API 안정성과 사용자 경험을 함께 흔들 수 있다고 판단했습니다. 그래서 Spring Boot는 인증·지원 상태·마감일·도메인 API를, Python AI 서비스는 파싱·브리핑·피드백 파이프라인을 맡도록 분리했습니다. 서비스 경계는 gRPC 계약으로 고정하고, 비동기 처리는 Kafka 이벤트로 흘려보냈으며, 사용자는 SSE로 진행 상태와 결과를 받아 AI 지연을 화면 경험 안에서 관리하도록 했습니다.</p>
+      <ul class="clean">
+        <li>Spring Boot와 Python AI 서비스를 분리해 도메인 상태와 AI 실행 책임을 나눴습니다.</li>
+        <li>gRPC로 서비스 간 요청·응답 계약을 고정해 경계를 명확히 했습니다.</li>
+        <li>Kafka 비동기 파이프라인 + SSE 스트리밍 응답을 구성했습니다.</li>
+        <li>Career Vault 기반 피드백으로 채용공고와 지원자 이력 근거를 연결했습니다.</li>
+      </ul>
+      <div class="stats">
+        <div class="stat"><div class="v">58</div><div class="k">백엔드 테스트</div></div>
+        <div class="stat"><div class="v">51</div><div class="k">Python 테스트</div></div>
+        <div class="stat"><div class="v">11</div><div class="k">프론트엔드 테스트</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 03 AlbaFit ===== -->
+<section id="albafit">
+  <div class="wrap">
+    <div class="sec-label">Project 03 · Frontend</div>
+    <h2>AlbaFit — 에브리타임 연동 알바 매칭 및 팀 업무 자동화</h2>
+    <div class="meta">
+      <span class="tag">2025.12 ~ 2026.06</span><span class="tag">Frontend 3 / Backend 3 / PM 1</span>
+      <span class="tag">Next.js</span><span class="tag">TypeScript</span><span class="tag">React Query</span><span class="tag">Zustand</span><span class="tag">Notion · GitHub</span>
+    </div>
+    <div class="card">
+      <h4>의사결정 과정</h4>
+      <p>프로젝트 중반, 백엔드 API 오류로 프론트엔드 일정이 함께 멈출 수 있는 상황이 있었습니다. API 완성을 기다리기보다 목 서버로 화면과 상태 연결을 병렬 진행하는 편이 낫다고 판단했습니다. 또 메인 페이지가 목록·검색·필터·위치·시간표 연동·UI 상태를 모두 들고 있으면 변경 비용이 커질 수 있어, 서버 상태는 React Query, UI·필터 상태는 Zustand와 훅으로 나누고 페이지 파일은 흐름을 조립하는 역할만 맡도록 줄였습니다. 협업 측면에서는 회의록 결정사항이 GitHub 이슈로 이어지지 않으면 구현 누락이 반복된다고 보고, Notion 회의록을 분석해 이슈 후보를 만들고 승인 후 GitHub 이슈로 연결하는 albafit-issue-maker 흐름을 구현했습니다.</p>
+      <div class="stats">
+        <div class="stat"><div class="v">338 → 94<small> 줄</small></div><div class="k">app/main/page.tsx 약 72.2% 축소</div></div>
+        <div class="stat"><div class="v">회의 → 이슈 → PR</div><div class="k">협업 흐름 표준화</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 04 Inventory ===== -->
+<section id="inventory">
+  <div class="wrap">
+    <div class="sec-label">Project 04 · Frontend</div>
+    <h2>제품 재고관리 — 수기·엑셀 업무의 웹 전환</h2>
+    <div class="meta">
+      <span class="tag">2025.06 ~ 현재</span><span class="tag">Frontend 1명</span>
+      <span class="tag">React</span><span class="tag">Next.js</span><span class="tag">입출고 처리 흐름</span>
+    </div>
+    <div class="card">
+      <h4>의사결정 과정</h4>
+      <p>중요한 것은 보기 좋은 관리 화면이 아니라 실제 업무 순서를 해치지 않는 것이었습니다. 현장 사용자는 입고·출고·조회를 빠르게 처리해야 하고, 중간에 일부 API 호출만 성공하면 재고 수량과 기록이 어긋날 수 있었습니다. 그래서 수기·엑셀 업무에서 데이터가 어떤 순서로 발생하는지 먼저 읽고, 입출고 처리를 여러 단계의 분산 호출이 아니라 하나의 일관된 흐름으로 묶었습니다. 이 경험은 “AI를 붙이기 전에 현장의 실제 판단 순서와 데이터 정합성 조건을 먼저 읽어야 한다”는 점에서 로컬 AI 설계와도 직접 연결됩니다.</p>
+      <div class="stats">
+        <div class="stat"><div class="v">N회 → 1회</div><div class="k">입출고 API 호출 구조 축소</div></div>
+        <div class="stat"><div class="v">85+ SKU</div><div class="k">약 10명 사용자 실업무 규모</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Fit ===== -->
+<section id="fit">
+  <div class="wrap">
+    <div class="sec-label">Closing</div>
+    <h2>지원 직무와의 연결</h2>
+    <div class="card">
+      <p>로컬 AI 개발 엔지니어 직무에서 제가 기여할 수 있는 지점은 단순 모델 호출보다 “판단 흐름을 어떻게 설계하고 검증할 것인가”에 있습니다. 제조 AI는 설비 상태·작업 조건·SOP·조치 이력에 따라 분기가 세분화되어야 하고, 에이전트가 생성한 결과도 환각 여부·SOP 근거·실행 가능성을 기준으로 평가되어야 합니다.</p>
+      <p>ForgeAI에서는 이 문제를 Rule Engine·SOP RAG·LangGraph·C++ dry-run으로 나누어 작게 검증했고, 무엇을 아직 못 했는지를 빈칸으로 남겨 정직하게 드러냈습니다. Landed에서는 AI 실행 계층과 도메인 상태 계층을 서비스 경계로 분리했고, AlbaFit과 재고관리에서는 실제 업무·협업 흐름에서 누락과 정합성 문제가 생기는 지점을 구조적으로 줄였습니다. 입사 후에는 설비 로그·SOP·조치 이력을 연결하고, 상황별 분기와 평가 지표를 갖춘 로컬 AI 에이전트 구축에 기여하겠습니다.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">유호범 · Backend / Local LLM AI Developer &nbsp;·&nbsp; 수치는 README 및 ADR 측정값 기준</div>
+</footer>
+
+</body>
+</html>
