@@ -373,6 +373,49 @@ curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
 
 ---
 
+## SOP MCP 서버
+
+ForgeAI는 Claude Desktop/Code에서 직접 SOP 문서를 검색하고 센서 컨텍스트를 조회할 수 있는 MCP 서버를 포함합니다. 파이프라인과 엔지니어가 동일한 도구 계층을 공유하는 것이 목적입니다.
+
+### 제공 도구
+
+| 도구 | 설명 |
+|------|------|
+| `search_sop` | SOP 문서 벡터 검색. `query`, `failure_type`(TWF\|HDF\|PWF\|OSF\|RNF, 선택), `top_k`(1–5, 기본 3) |
+| `get_sensor_context` | 설비 등급별 센서 정상 범위 + 리스크 지수. `equipment_type`(H\|M\|L), `tool_wear_min`, `torque_nm`, `rotational_speed_rpm` |
+
+### Claude Desktop 연결
+
+`~/Library/Application Support/Claude/claude_desktop_config.json`에 추가:
+
+```json
+{
+  "mcpServers": {
+    "forgeai-sop": {
+      "command": "uv",
+      "args": ["run", "python", "mcp_server/server.py"],
+      "cwd": "/path/to/ForgeAI"
+    }
+  }
+}
+```
+
+### MCP Inspector로 테스트
+
+```bash
+uv run fastmcp dev inspector mcp_server/server.py
+```
+
+브라우저에서 `http://localhost:5173` 열어 도구 호출 확인.
+
+### 설계 근거
+
+- **STDIO 트랜스포트**: ForgeAI 본체(FastAPI :8000)와 런타임을 분리. 인증·원격 배포 없이 로컬 사용.
+- **신뢰성 3종**: Pydantic 입력 검증 + 구조화 에러(LLM 재시도 가능), 출력 토큰 예산 truncation(청크당 600자/전체 2,400자), description 버전 관리(`[v1.0.0]`).
+- 상세 결정 기록: [`docs/adr_001_mcp_tool_layer.md`](docs/adr_001_mcp_tool_layer.md)
+
+---
+
 ## 테스트
 
 ```bash
