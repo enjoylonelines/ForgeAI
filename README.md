@@ -100,7 +100,7 @@ EquipmentLog (센서 5종 + 태그)
 | 확률 보정 (calibration) | 미구현 — ADR-004 참조 |
 | 다중 레이블 failure_type | `get_all_triggered_failure_types()` 구현됨, 파이프라인 미연결 |
 | 실시간 스트리밍 | CSV replay 평가 도구(stream_simulator.py)만 구현, Kafka 미연결 |
-| Provenance lineage 체계 | chunk_id 메타데이터 있음, 감사 쿼리 인터페이스 미구현 |
+| Provenance lineage 체계 | ADR-014 측정 정의 완료, 감사 쿼리 인터페이스 미구현 |
 
 ---
 
@@ -121,6 +121,7 @@ EquipmentLog (센서 5종 + 태그)
 | [ADR-011](docs/adr/ADR-011-deployment-gate.md) | 배포 게이트(승격 기준) 정의 | 채택 |
 | [ADR-012](docs/adr/ADR-012-data-validation-gate.md) | 데이터 검증 단계 (서빙 전 품질 게이트) | 검토중 |
 | [ADR-013](docs/adr/ADR-013-training-serving-skew.md) | training-serving skew 방지 (학습/서빙 전처리 일치) | 검토중 |
+| [ADR-014](docs/adr/ADR-014-traceability-coverage-metric.md) | 근거 추적 % 측정 정의 (분모·분자·SAFE early-exit 처리) | 채택 |
 
 ---
 
@@ -327,7 +328,16 @@ data/chroma/                ← 파생물 (ChromaDB 벡터)
 - **분기 규칙화:** `risk_level` / `failure_type` 판정은 rule engine이 결정론적으로 수행 — LLM에 위임하지 않음 (ADR-005)
 - **최대 루프 횟수 고정:** DiagnosticAgent tool use 최대 5회, ActionPlanAgent 재시도 최대 3회
 
-**측정:** 동일 입력 반복 실행 일관성 `[___]%` → 레이어3 / ADR-008 참조
+**측정 (30-run 실측, 6 stratum × 5회):**
+
+| 지표 | 값 | 판정 기준 |
+|------|-----|----------|
+| has_anomaly 일관성 | **100.0%** | ✅ |
+| route 일관성 | **96.7%** | ❌ (≥99% 미달, TWF 층 분기) |
+| recommendation 일관성 | **96.0%** | ❌ (≥99% 미달) |
+| grounding_score σ 평균 | **0.0347** | — |
+
+TWF 층에서 1건 분기 발생 (LLM 비결정성 잔존). 상세: [`docs/consistency_report.md`](docs/consistency_report.md) → ADR-008
 
 ---
 
@@ -369,7 +379,7 @@ EquipmentLog (센서값 + 타임스탬프)
           + correlation_id → Langfuse 스팬
 ```
 
-**측정:** "결과에서 원본 SOP 청크까지 역추적 가능" 비율 `[___]%` → 레이어3 / ADR-007 참조
+**측정:** "결과에서 원본 SOP 청크까지 역추적 가능" 비율 → ADR-014 기준 정의 완료, `scripts/measure_traceability.py`로 측정 가능. 4개 요건(센서값·rule 판정·SOP chunk_id·grounding_score) 전부 충족 시 추적 가능으로 판정, 종료 코드로 ≥80% 기준 자동 판별. 상세: [`docs/traceability_walkthrough.md`](docs/traceability_walkthrough.md) → ADR-014
 
 현재 추적 가능한 것과 불가능한 것의 상세는 → [9. DataOps & Provenance](#9-dataops--provenance)
 
@@ -506,11 +516,15 @@ PipelineResult (JSON 응답 + lineage 로그)
 
 ### 다음 단계
 
-1. **SECOM 베이스라인** — 590피처 결측 처리 + 수율 예측 PR-AUC 측정 → ADR-001 빈칸 채우기
-2. **운영점 설정** — recall/precision 트레이드오프 곡선 → 현장 FN·FP 비용 가정 하에 임계값 결정
-3. **확률 보정** — Platt scaling or isotonic regression 실험 → ADR-004 빈칸 채우기
-4. **grounding_score 개선** — cited chunk 직접 비교(sop_reference 텍스트와 action 1:1 비교)
-5. **감사 인터페이스** — correlation_id → 센서값/모델버전/임계값/SOP청크 단일 조회 구현
+| # | 항목 | 상태 |
+|---|------|------|
+| 1 | **SECOM 베이스라인** — 590피처 결측 처리 + 수율 예측 PR-AUC 측정 → ADR-001 빈칸 채우기 | 탐색 완료, ML 통합 미완 |
+| 2 | **운영점 설정** — recall/precision 트레이드오프 곡선 → 임계값 결정 | 미완 |
+| 3 | **확률 보정** — Platt scaling or isotonic regression 실험 → ADR-004 | 미완 |
+| 4 | **grounding_score 개선** — cited chunk 직접 비교 | 미완 |
+| 5 | **감사 인터페이스** — correlation_id → 단일 조회 구현 | 미완 |
+| 6 | **일관성 TWF 분기 원인 분석** — TWF 층 route 80% 분기 재현 및 온도 고정 보완 | 미완 |
+| 7 | **근거 추적 % 실측** — `measure_traceability.py` 실행 후 ADR-014 ≥80% 달성 확인 | 미완 |
 
 ---
 
@@ -829,9 +843,17 @@ ForgeAI/
 │   └── chroma/                    # ChromaDB 벡터 (재생성 가능한 파생물)
 ├── scripts/
 │   ├── baseline_classifier.py     # RF + XGBoost 베이스라인 (재현 가능)
-│   └── validate_ai4i.py           # AI4I 샘플로 파이프라인 E2E 검증
+│   ├── validate_ai4i.py           # AI4I 샘플로 파이프라인 E2E 검증
+│   ├── consistency_protocol.py    # 30-run 층화 일관성 프로토콜
+│   ├── escalation_demo.py         # SAFE→AUTO / CRITICAL→ESCALATE 분기 재현
+│   ├── promotion_gate_demo.py     # 승격 게이트: 좋은 모델 승인 / 나쁜 모델 차단
+│   ├── conflict_case_reproduce.py # 판단 충돌 → 에스컬레이션 케이스 재현
+│   ├── eval_routing_accuracy.py   # 라우팅 정확도 평가 (20케이스, 9개 규칙 전체)
+│   └── measure_traceability.py    # 근거 추적 % 측정 (ADR-014 기준)
 ├── docs/
-│   ├── adr/                       # 설계 결정 기록 (ADR-001 ~ ADR-007)
+│   ├── adr/                       # 설계 결정 기록 (ADR-001 ~ ADR-014)
+│   ├── consistency_report.md      # 30-run 일관성 실측 결과
+│   ├── traceability_walkthrough.md # 센서값→SOP까지 6단계 완주 예시
 │   └── rag-improvement.md         # RAG 개선 4회 트러블슈팅 기록
 └── tests/                         # pytest 단위 테스트 (26개)
 ```
