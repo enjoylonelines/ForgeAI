@@ -447,6 +447,20 @@ ForgeAI/
 
 ---
 
+<!-- routing-accuracy-results -->
+
+### 라우팅 정확도 평가 결과
+
+| 지표 | 값 |
+|------|----|
+| 라우팅 정확도 | 20/20 = **100.0%** |
+| 커버 규칙 | R-C1, R-C2, R-1, R-2, R-3, R-4, R-5, R-6, R-F (9개 전체) |
+| 우선순위 경계 케이스 포함 | 2건 (c19, c20) |
+
+평가 데이터: [`data/routing_eval_20cases.csv`](data/routing_eval_20cases.csv) · 스크립트: [`scripts/eval_routing_accuracy.py`](scripts/eval_routing_accuracy.py)
+
+---
+
 ## RAG 개선 기록
 
 초기 구현에서 TWF 요청 시 HDF SOP가 1위로 검색되는 문제를 4회 반복 개선으로 해결했습니다.
