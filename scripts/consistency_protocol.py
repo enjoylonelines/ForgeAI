@@ -19,6 +19,7 @@ import statistics
 import sys
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,64 +31,100 @@ from models.equipment_log import EquipmentLog, SensorReading
 from pipeline.forge_pipeline import ForgePipeline
 
 
-# ── 층화 샘플 로더 ─────────────────────────────────────────────────────────────
+# ── 층화 샘플 정의 ─────────────────────────────────────────────────────────────
+# rule_engine 임계값을 확실히 트리거하는 하드코딩 케이스.
+# AI4I 랜덤 샘플은 라벨이 있어도 센서값이 임계값을 안 넘어 early_exit(SAFE)가 되어
+# LLM 파이프라인이 실행되지 않으므로 일관성 측정 의미가 없음.
 
-_FAILURE_COLS = ["TWF", "HDF", "PWF", "OSF", "RNF"]
-_LOCAL_CSV = Path(__file__).parent.parent / "data" / "ai4i2020.csv"
+_FIXED_SAMPLES: list[tuple[str, dict]] = [
+    # TWF: tool_wear ≥ 200 → rule_engine CRITICAL
+    ("TWF", dict(equipment_id="CP-TWF-001", log_level="ERROR",
+                 message="Tool wear limit exceeded",
+                 air=298.0, proc=308.0, rpm=1500.0, torque=42.0, wear=215.0,
+                 failure_types="TWF")),
+    ("TWF", dict(equipment_id="CP-TWF-002", log_level="ERROR",
+                 message="Tool wear critical",
+                 air=299.0, proc=309.0, rpm=1480.0, torque=40.0, wear=230.0,
+                 failure_types="TWF")),
+    # HDF: (proc-air) < 8.6 AND rpm < 1380 → rule_engine WARNING
+    ("HDF", dict(equipment_id="CP-HDF-001", log_level="WARN",
+                 message="Heat dissipation anomaly",
+                 air=302.0, proc=308.0, rpm=1200.0, torque=35.0, wear=80.0,
+                 failure_types="HDF")),
+    ("HDF", dict(equipment_id="CP-HDF-002", log_level="WARN",
+                 message="Heat dissipation low",
+                 air=303.0, proc=308.5, rpm=1300.0, torque=33.0, wear=90.0,
+                 failure_types="HDF")),
+    # PWF: torque × rpm × 2π/60 < 3500 → rule_engine WARNING
+    ("PWF", dict(equipment_id="CP-PWF-001", log_level="ERROR",
+                 message="Power output below minimum",
+                 air=299.0, proc=309.0, rpm=1400.0, torque=15.0, wear=90.0,
+                 failure_types="PWF")),
+    ("PWF", dict(equipment_id="CP-PWF-002", log_level="ERROR",
+                 message="Power failure detected",
+                 air=300.0, proc=310.0, rpm=1350.0, torque=14.0, wear=85.0,
+                 failure_types="PWF")),
+    # OSF: tool_wear × torque > 11000 → rule_engine WARNING
+    ("OSF", dict(equipment_id="CP-OSF-001", log_level="WARN",
+                 message="Overstrain condition detected",
+                 air=300.0, proc=310.0, rpm=1000.0, torque=60.0, wear=190.0,
+                 failure_types="OSF")),
+    ("OSF", dict(equipment_id="CP-OSF-002", log_level="WARN",
+                 message="Overstrain limit exceeded",
+                 air=301.0, proc=311.0, rpm=950.0,  torque=65.0, wear=180.0,
+                 failure_types="OSF")),
+    # RNF: 임계값 없음 → ML predictor 보조 탐지 경로
+    ("RNF", dict(equipment_id="CP-RNF-001", log_level="WARN",
+                 message="Random failure pattern",
+                 air=305.0, proc=315.0, rpm=1600.0, torque=55.0, wear=150.0,
+                 failure_types="RNF")),
+    ("RNF", dict(equipment_id="CP-RNF-002", log_level="WARN",
+                 message="Unclassified anomaly",
+                 air=304.0, proc=314.0, rpm=1550.0, torque=52.0, wear=145.0,
+                 failure_types="RNF")),
+    # NORMAL: 모든 센서 정상 → SAFE early_exit (대조군)
+    ("NORMAL", dict(equipment_id="CP-NRM-001", log_level="INFO",
+                    message="Normal operation",
+                    air=300.0, proc=310.0, rpm=1800.0, torque=38.0, wear=95.0,
+                    failure_types="NONE")),
+    ("NORMAL", dict(equipment_id="CP-NRM-002", log_level="INFO",
+                    message="Normal operation",
+                    air=299.5, proc=309.5, rpm=1850.0, torque=36.0, wear=100.0,
+                    failure_types="NONE")),
+]
 
 
-def _load_raw_df() -> pd.DataFrame:
-    if _LOCAL_CSV.exists():
-        return pd.read_csv(_LOCAL_CSV)
-    from ucimlrepo import fetch_ucirepo
-    dataset = fetch_ucirepo(id=601)
-    X = dataset.data.features.copy()
-    y = dataset.data.targets.copy()
-    return pd.concat([X, y], axis=1)
-
-
-def _row_to_log(row: pd.Series, seq: int) -> EquipmentLog:
+def load_stratified_samples(n_per_stratum: int = 1) -> list[tuple[str, EquipmentLog]]:
+    """rule_engine을 확실히 트리거하는 고정 케이스 반환. [(stratum_label, log)]
+    n_per_stratum: stratum당 샘플 수 (기본 1, 최대 2)
+    """
     from datetime import timedelta
-    ts = datetime(2026, 1, 1, 8, tzinfo=timezone.utc) + timedelta(minutes=seq * 5)
-    active = [f for f in _FAILURE_COLS if row.get(f, 0)]
-    return EquipmentLog(
-        equipment_id=str(row.get("Product ID", f"EQ-{seq}")),
-        timestamp=ts,
-        log_level="ERROR" if active else "INFO",
-        message=f"Failure: {','.join(active)}" if active else "Normal operation",
-        readings=[
-            SensorReading(sensor_id="air_temperature_k",     unit="K",   value=float(row["Air temperature [K]"])),
-            SensorReading(sensor_id="process_temperature_k", unit="K",   value=float(row["Process temperature [K]"])),
-            SensorReading(sensor_id="rotational_speed_rpm",  unit="rpm", value=float(row["Rotational speed [rpm]"])),
-            SensorReading(sensor_id="torque_nm",             unit="Nm",  value=float(row["Torque [Nm]"])),
-            SensorReading(sensor_id="tool_wear_min",         unit="min", value=float(row["Tool wear [min]"])),
-        ],
-        tags={
-            "type": str(row.get("Type", "M")),
-            "failure_types": active[0] if active else "NONE",
-            "machine_failure": str(int(row.get("Machine failure", 0))),
-        },
-    )
-
-
-def load_stratified_samples(n_per_stratum: int = 6) -> list[tuple[str, EquipmentLog]]:
-    """고장 유형별 n개 + 정상 n개 층화 샘플. 반환: [(stratum_label, log)]"""
-    df = _load_raw_df()
     samples: list[tuple[str, EquipmentLog]] = []
-    seq = 0
 
-    for col in _FAILURE_COLS:
-        if col not in df.columns:
+    seen: dict[str, int] = {}
+    for stratum, spec in _FIXED_SAMPLES:
+        count = seen.get(stratum, 0)
+        if count >= n_per_stratum:
             continue
-        subset = df[df[col] == 1].head(n_per_stratum)
-        for _, row in subset.iterrows():
-            samples.append((col, _row_to_log(row, seq)))
-            seq += 1
-
-    normal_df = df[df["Machine failure"] == 0].head(n_per_stratum)
-    for _, row in normal_df.iterrows():
-        samples.append(("NORMAL", _row_to_log(row, seq)))
-        seq += 1
+        seen[stratum] = count + 1
+        seq = len(samples)
+        ts = datetime(2026, 1, 1, 8, tzinfo=timezone.utc) + timedelta(minutes=seq * 5)
+        log = EquipmentLog(
+            equipment_id=spec["equipment_id"],
+            timestamp=ts,
+            log_level=spec["log_level"],
+            message=spec["message"],
+            readings=[
+                SensorReading(sensor_id="air_temperature_k",     unit="K",   value=spec["air"]),
+                SensorReading(sensor_id="process_temperature_k", unit="K",   value=spec["proc"]),
+                SensorReading(sensor_id="rotational_speed_rpm",  unit="rpm", value=spec["rpm"]),
+                SensorReading(sensor_id="torque_nm",             unit="Nm",  value=spec["torque"]),
+                SensorReading(sensor_id="tool_wear_min",         unit="min", value=spec["wear"]),
+            ],
+            tags={"type": "M", "failure_types": spec["failure_types"],
+                  "machine_failure": "0" if stratum == "NORMAL" else "1"},
+        )
+        samples.append((stratum, log))
 
     return samples
 
@@ -169,6 +206,9 @@ def build_report(
     ]
     avg_gs_std = statistics.mean(grounding_stds) if grounding_stds else 0.0
 
+    all_gs = [gs for r in results for gs in r["grounding_scores"]]
+    avg_gs_mean = statistics.mean(all_gs) if all_gs else None
+
     divergence_stages = [r["divergence_stage"] for r in results if r["divergence_stage"]]
     most_common_div = max(set(divergence_stages), key=divergence_stages.count) if divergence_stages else "없음"
 
@@ -198,18 +238,20 @@ def build_report(
         f"| has_anomaly 일관성 | {_fmt(overall_anomaly)} | {_judge(overall_anomaly)} |",
         f"| recommendation 일관성 | {_fmt(overall_rec)} | {_judge(overall_rec)} |",
         f"| route 일관성 | {_fmt(overall_route)} | {_judge(overall_route)} |",
+        f"| grounding_score 평균 | {avg_gs_mean*100:.1f}% | — |" if avg_gs_mean is not None else "| grounding_score 평균 | N/A | — |",
         f"| grounding_score σ (평균) | {avg_gs_std:.4f} | — |",
         f"| 최초 분기 지점 | {most_common_div} | — |",
         f"| 종합 | — | {pass_fail} |",
         f"",
         f"## 층화별 결과",
         f"",
-        f"| # | 층 | Equipment ID | anomaly | rec | route | gs_σ | 분기점 |",
-        f"|---|---|---|---|---|---|---|---|",
+        f"| # | 층 | Equipment ID | anomaly | rec | route | gs_μ | gs_σ | 분기점 |",
+        f"|---|---|---|---|---|---|---|---|---|",
     ]
 
     for i, r in enumerate(results, 1):
         gs_std = statistics.stdev(r["grounding_scores"]) if len(r["grounding_scores"]) > 1 else 0.0
+        gs_mean_fmt = f"{statistics.mean(r['grounding_scores'])*100:.1f}%" if r["grounding_scores"] else "N/A"
         rec_mode = max(set(r["runs_rec"]), key=r["runs_rec"].count) if r["runs_rec"] else "—"
         route_mode = max(set(r["runs_route"]), key=r["runs_route"].count) if r["runs_route"] else "—"
         a_fmt  = _fmt(r["anomaly_consistency"])
@@ -220,6 +262,7 @@ def build_report(
             f"| {a_fmt} "
             f"| {rc_fmt} ({rec_mode}) "
             f"| {ro_fmt} ({route_mode}) "
+            f"| {gs_mean_fmt} "
             f"| {gs_std:.4f} "
             f"| {r['divergence_stage'] or '없음'} |"
         )
@@ -248,7 +291,7 @@ def build_report(
 
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
-async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: float) -> None:
+async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: float, chart_path: Path | None = None) -> None:
     print(f"층화 샘플 로드 중 (stratum당 최대 {n_per_stratum}개)...")
     samples = load_stratified_samples(n_per_stratum=n_per_stratum)
     print(f"샘플 {len(samples)}건 로드 완료. {n_runs}회 × {len(samples)}건 = {n_runs * len(samples)}회 실행\n")
@@ -307,18 +350,103 @@ async def main(n_runs: int, n_per_stratum: int, out_path: Path | None, target: f
         out_path.write_text(report, encoding="utf-8")
         print(f"리포트 저장: {out_path}")
 
+    if chart_path:
+        save_distribution_chart(all_results, chart_path)
+
+
+# ── 차트 생성 ─────────────────────────────────────────────────────────────────
+
+def save_distribution_chart(results: list[dict], out_path: Path) -> None:
+    """판정 분포 차트 저장 (route 일관성 + stratum별 route 분포)."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import numpy as np
+    except ImportError:
+        print("[WARN] matplotlib 미설치 — 차트 생략")
+        return
+
+    strata = [r["stratum"] for r in results]
+    unique_strata = list(dict.fromkeys(strata))
+
+    route_colors = {"AUTO": "#4CAF50", "ESCALATE": "#F44336", "HUMAN_REVIEW": "#FF9800", None: "#9E9E9E"}
+    route_labels = ["AUTO", "ESCALATE", "HUMAN_REVIEW"]
+
+    # stratum별 route 분포 집계
+    stratum_routes: dict[str, Counter] = {}
+    for r in results:
+        s = r["stratum"]
+        if s not in stratum_routes:
+            stratum_routes[s] = Counter()
+        for run in r["runs"]:
+            stratum_routes[s][run.get("route") or "None"] += 1
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("ForgeAI 판단 일관성 검증 결과", fontsize=14, fontweight="bold")
+
+    # ── 왼쪽: 일관성률 막대 ──────────────────────────────────────────────────
+    x = np.arange(len(results))
+    width = 0.25
+    a_vals = [r["anomaly_consistency"] or 0 for r in results]
+    rc_vals = [r["rec_consistency"] or 0 for r in results]
+    ro_vals = [r["route_consistency"] or 0 for r in results]
+
+    ax1.bar(x - width, a_vals, width, label="has_anomaly", color="#2196F3", alpha=0.8)
+    ax1.bar(x,         rc_vals, width, label="recommendation", color="#9C27B0", alpha=0.8)
+    ax1.bar(x + width, ro_vals, width, label="route", color="#FF5722", alpha=0.8)
+    ax1.axhline(y=0.99, color="black", linestyle="--", linewidth=1.2, label="목표 99%")
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([r["equipment_id"][:8] for r in results], rotation=45, ha="right", fontsize=7)
+    ax1.set_ylim(0, 1.05)
+    ax1.set_ylabel("일관성률")
+    ax1.set_title("샘플별 판단 일관성")
+    ax1.legend(fontsize=8)
+    ax1.grid(axis="y", alpha=0.3)
+
+    # ── 오른쪽: stratum별 route 분포 스택 막대 ──────────────────────────────
+    xs = np.arange(len(unique_strata))
+    bottoms = np.zeros(len(unique_strata))
+    for rl in route_labels:
+        vals = [stratum_routes.get(s, Counter()).get(rl, 0) for s in unique_strata]
+        ax2.bar(xs, vals, bottom=bottoms, color=route_colors[rl], label=rl, alpha=0.85)
+        bottoms += np.array(vals)
+    ax2.set_xticks(xs)
+    ax2.set_xticklabels(unique_strata, rotation=30, ha="right")
+    ax2.set_ylabel("실행 횟수")
+    ax2.set_title("층화별 라우팅 분포")
+    patches = [mpatches.Patch(color=route_colors[rl], label=rl) for rl in route_labels]
+    ax2.legend(handles=patches, fontsize=8)
+    ax2.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"차트 저장: {out_path}")
+
+
+# ── 메인 ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="일관성 프로토콜 실측")
     parser.add_argument("--runs",     type=int,  default=20,  help="샘플당 반복 횟수 (기본 20)")
-    parser.add_argument("--samples",  type=int,  default=6,   help="stratum당 샘플 수 (기본 6)")
+    parser.add_argument("--samples",  type=int,  default=5,   help="stratum당 샘플 수 (기본 5 → 30×20=600)")
     parser.add_argument("--target",   type=float,default=0.99, help="일관성 목표 (기본 0.99)")
     parser.add_argument("--out",      type=str,  default="docs/consistency_report.md", help="리포트 출력 경로")
+    parser.add_argument("--chart",    type=str,  default="docs/consistency_distribution.png", help="차트 출력 경로")
+    parser.add_argument("--model",    type=str,  default=None, help="Ollama 모델 (예: qwen3:4b)")
     args = parser.parse_args()
+
+    if args.model:
+        import os
+        os.environ["OLLAMA_CHAT_MODEL"] = args.model
 
     asyncio.run(main(
         n_runs=args.runs,
         n_per_stratum=args.samples,
         out_path=Path(args.out) if args.out else None,
         target=args.target,
+        chart_path=Path(args.chart) if args.chart else None,
     ))
