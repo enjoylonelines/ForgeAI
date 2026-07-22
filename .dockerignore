@@ -1,0 +1,31 @@
+# 가상환경·캐시
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# 민감 정보
+.env
+.env.local
+
+# 데이터·로그 (볼륨으로 주입)
+data/chroma/
+logs/
+
+# 빌드 아티팩트
+build/
+dist/
+*.egg-info/
+
+# 개발 도구
+.git/
+.github/
+.vscode/
+.idea/
+
+# 문서
+docs/
+*.md
+!README.md
