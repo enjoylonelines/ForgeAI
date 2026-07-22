@@ -1,3 +1,6 @@
+# Docker Compose v2.1+ 필요 (service_completed_successfully 조건 사용)
+# Docker Desktop 4.x / docker-compose CLI 2.1+ 에서 지원
+# GitHub Actions: docker/compose-action@v2 이상 또는 setup-docker-buildx 조합 권장
 services:
   # Ollama LLM 서버
   ollama:
