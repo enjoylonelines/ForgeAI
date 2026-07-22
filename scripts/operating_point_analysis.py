@@ -86,11 +86,11 @@ def main():
     # ── 운영점 추천 ──────────────────────────────────────────────────────────
     df_rows = pd.DataFrame(rows)
 
-    # 기준 1: Recall ≥ 0.90 중 가중 비용 최소
-    r90 = df_rows[df_rows["recall"] >= 0.90]
-    # 기준 2: 가중 비용 절대 최소
-    best_cost = df_rows.loc[df_rows["cost"].idxmin()]
-    # 기준 3: F1 최대
+    # Precision 하한: 탐지된 알람 중 절반 이상은 실제 고장이어야 함 (과탐 방어)
+    PRECISION_FLOOR = 0.5
+    feasible = df_rows[df_rows["precision"] >= PRECISION_FLOOR]
+
+    best_cost = feasible.loc[feasible["cost"].idxmin()] if not feasible.empty else df_rows.loc[df_rows["cost"].idxmin()]
     best_f1 = df_rows.loc[df_rows["f1"].idxmax()]
 
     max_recall = df_rows["recall"].max()
@@ -101,23 +101,24 @@ def main():
     print("=" * 62)
     print(f"\n  ※ 달성 가능한 최대 Recall: {max_recall:.4f} (임계값 {max_recall_row['threshold']:.2f})")
     print(f"  ※ Recall이 0.90에 못 미치는 이유: RNF(랜덤 고장)는 센서 패턴과 무관해 구조적으로 탐지 불가")
+    print(f"  ※ Precision ≥ {PRECISION_FLOOR} 제약 적용 (과탐 방어): {len(feasible)}개 임계값 후보")
 
-    # Recall ≥ 0.80 중 가중비용 최소를 운영점으로 설정
-    r80 = df_rows[df_rows["recall"] >= 0.80]
+    # Precision ≥ 0.5 만족 & Recall ≥ 0.80 중 가중비용 최소를 운영점으로 설정
+    r80 = feasible[feasible["recall"] >= 0.80]
     if not r80.empty:
         op = r80.loc[r80["cost"].idxmin()]
-        print(f"\n[A] Recall ≥ 0.80 (달성 가능한 현실적 목표) + 가중비용 최소")
+        print(f"\n[A] Precision ≥ {PRECISION_FLOOR} + Recall ≥ 0.80 + 가중비용 최소")
         print(f"    임계값 {op['threshold']:.2f}  →  "
               f"Recall {op['recall']:.4f} / Precision {op['precision']:.4f} / "
               f"F1 {op['f1']:.4f}")
         print(f"    FP {int(op['fp'])}건 / FN {int(op['fn'])}건  (가중비용: {int(op['cost'])})")
 
-    print(f"\n[B] 가중비용 절대 최소 (FN×{FN_FP_COST_RATIO} + FP)")
+    print(f"\n[B] Precision ≥ {PRECISION_FLOOR} 내 가중비용 절대 최소 (FN×{FN_FP_COST_RATIO} + FP)")
     print(f"    임계값 {best_cost['threshold']:.2f}  →  "
           f"Recall {best_cost['recall']:.4f} / Precision {best_cost['precision']:.4f} / "
           f"F1 {best_cost['f1']:.4f}")
 
-    print(f"\n[C] F1 최대")
+    print(f"\n[C] F1 최대 (Precision 제약 없음)")
     print(f"    임계값 {best_f1['threshold']:.2f}  →  "
           f"Recall {best_f1['recall']:.4f} / Precision {best_f1['precision']:.4f} / "
           f"F1 {best_f1['f1']:.4f}")
@@ -136,8 +137,9 @@ def main():
         print(f"  PR-AUC         ≥ {pr_auc:.3f}   (현재 모델 기준선)")
         print(f"  운영점 Recall  ≥ 0.800   (임계값 {op['threshold']:.2f} 적용 시, "
               f"Precision {op['precision']:.3f})")
-        print(f"  선택 근거: RNF 구조적 한계로 0.90 불가. FN/FP 비용비 {FN_FP_COST_RATIO}:1 "
-              f"가정에서 Recall ≥ 0.80 달성 최저 비용 지점.")
+        print(f"  Precision      ≥ {PRECISION_FLOOR}   (과탐 방어 하한)")
+        print(f"  선택 근거: RNF 구조적 한계로 0.90 불가. Precision ≥ {PRECISION_FLOOR} 제약 내 "
+              f"FN/FP 비용비 {FN_FP_COST_RATIO}:1 가정에서 Recall ≥ 0.80 달성 최저 비용 지점.")
 
 
 if __name__ == "__main__":
