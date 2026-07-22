@@ -9,7 +9,8 @@ WORKDIR /app
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
-    UV_PROJECT_ENVIRONMENT=/app/.venv
+    UV_PROJECT_ENVIRONMENT=/app/.venv \
+    UV_HTTP_TIMEOUT=120
 
 # 의존성만 먼저 캐시 레이어로 분리
 COPY pyproject.toml uv.lock ./
