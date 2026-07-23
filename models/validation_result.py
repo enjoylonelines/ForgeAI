@@ -12,6 +12,8 @@ class StepValidation(BaseModel):
     grounding_score: float
     best_matching_chunk_id: str | None = None
     is_grounded: bool
+    nli_label: str | None = None               # "entailment" | "neutral" | "contradiction"
+    contradiction_detected: bool = False
 
 
 class ValidationResult(BaseModel):
@@ -24,3 +26,5 @@ class ValidationResult(BaseModel):
     recommendation: Literal["APPROVE", "REVIEW", "REJECT"]
     explanation: str | None = None
     correlation_id: str | None = None
+    validation_strategy: str = "cosine"        # "cosine" | "nli-hybrid"
+    contradiction_count: int = 0               # NLI contradiction 검출 수

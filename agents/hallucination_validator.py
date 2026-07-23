@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timezone
 
 from agents.base import BaseAgent, MaxRetriesExceededError
+from agents.validation_strategy import get_strategy
 from core.config import get_settings
 from core.langchain_client import get_embeddings
 from core.langfuse_client import get_langfuse
@@ -84,51 +85,56 @@ class HallucinationValidatorAgent(BaseAgent):
                 vecs = await embeddings_client.aembed_documents(sentences)
                 sop_sentence_embeddings[cid] = vecs
 
+        strategy = get_strategy(
+            nli_enabled=settings.nli_enabled,
+            contradiction_threshold=settings.nli_contradiction_threshold,
+        )
+        strategy_name = "nli-hybrid" if settings.nli_enabled else "cosine"
+
         step_validations: list[StepValidation] = []
         for step in action_plan.steps:
             step_vec = await embeddings_client.aembed_query(step.action)
+            cited = step.sop_reference if step.sop_reference in sop_sentence_embeddings else None
 
-            # 1) 청크 단위 비교 (기존 방식)
-            best_score = 0.0
-            best_chunk_id: str | None = None
-            for chunk_id, sop_vec in sop_embeddings.items():
-                score = _cosine_similarity(step_vec, sop_vec)
-                if score > best_score:
-                    best_score = score
-                    best_chunk_id = chunk_id
-
-            # 2) 인용 청크 문장 단위 비교 — 짧은 지시문과 직접 매칭
-            if step.sop_reference and step.sop_reference in sop_sentence_embeddings:
-                for sent_vec in sop_sentence_embeddings[step.sop_reference]:
-                    score = _cosine_similarity(step_vec, sent_vec)
-                    if score > best_score:
-                        best_score = score
-                        best_chunk_id = step.sop_reference
+            scored = await strategy.score_step(
+                action=step.action,
+                step_vec=step_vec,
+                sop_embeddings=sop_embeddings,
+                sop_sentence_embeddings=sop_sentence_embeddings,
+                sop_text_map=chunk_text_map,
+                cited_chunk_id=cited,
+            )
 
             step_validations.append(StepValidation(
                 step_number=step.step_number,
                 action=step.action,
-                grounding_score=round(best_score, 4),
-                best_matching_chunk_id=best_chunk_id,
-                is_grounded=best_score >= threshold,
+                grounding_score=scored.grounding_score,
+                best_matching_chunk_id=scored.best_chunk_id,
+                is_grounded=scored.grounding_score >= threshold,
+                nli_label=scored.nli_label,
+                contradiction_detected=scored.contradiction_detected,
             ))
 
         scores = [sv.grounding_score for sv in step_validations]
         overall = round(sum(scores) / len(scores), 4) if scores else 0.0
         ungrounded = [sv.step_number for sv in step_validations if not sv.is_grounded]
+        contradiction_count = sum(1 for sv in step_validations if sv.contradiction_detected)
         is_valid = overall >= threshold
 
         lf = get_langfuse()
         if lf:
             obs = lf.start_observation(
-                name="cosine_grounding",
-                input={"step_count": len(action_plan.steps), "threshold": threshold},
-                output={"overall_grounding_score": overall, "ungrounded_steps": ungrounded},
+                name="grounding_validation",
+                input={"step_count": len(action_plan.steps), "threshold": threshold, "strategy": strategy_name},
+                output={"overall_grounding_score": overall, "ungrounded_steps": ungrounded, "contradiction_count": contradiction_count},
                 metadata={"correlation_id": correlation_id},
             )
             obs.end()
 
-        if overall >= settings.grounding_approve_threshold:
+        # contradiction 검출 시 즉시 REJECT (점수와 무관)
+        if contradiction_count > 0:
+            recommendation = "REJECT"
+        elif overall >= settings.grounding_approve_threshold:
             recommendation = "APPROVE"
         elif overall >= settings.grounding_review_threshold:
             recommendation = "REVIEW"
@@ -147,6 +153,8 @@ class HallucinationValidatorAgent(BaseAgent):
             overall_grounding_score=overall,
             recommendation=recommendation,
             ungrounded_count=len(ungrounded),
+            contradiction_count=contradiction_count,
+            strategy=strategy_name,
         )
         return ValidationResult(
             equipment_id=action_plan.equipment_id,
@@ -158,6 +166,8 @@ class HallucinationValidatorAgent(BaseAgent):
             recommendation=recommendation,
             explanation=explanation,
             correlation_id=correlation_id,
+            validation_strategy=strategy_name,
+            contradiction_count=contradiction_count,
         )
 
     async def _generate_explanation(
