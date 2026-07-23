@@ -38,6 +38,12 @@ class Settings:
     control_adapter_path: str = field(default_factory=lambda: os.getenv("CONTROL_ADAPTER_PATH", "./build/control_adapter"))
     decision_log_path: str = field(default_factory=lambda: os.getenv("DECISION_LOG_PATH", "./logs/decisions.jsonl"))
 
+    # NLI 검증 전략 (이슈 #46)
+    nli_enabled: bool = field(default_factory=lambda: os.getenv("NLI_ENABLED", "false").lower() == "true")
+    # CPU-friendly English NLI; 한국어 포함 시 MoritzLaurer/mDeBERTa-v3-base-mnli-xnli 권장 (ADR-015)
+    nli_model: str = field(default_factory=lambda: os.getenv("NLI_MODEL", "cross-encoder/nli-deberta-v3-small"))
+    nli_contradiction_threshold: float = field(default_factory=lambda: float(os.getenv("NLI_CONTRADICTION_THRESHOLD", "0.5")))
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

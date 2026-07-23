@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-07-23T00:00:00+00:00",
+  "description": "이슈 #46 NLI cross-encoder 검증용 합성 케이스 — contradiction / neutral / entailment 판정 비교",
+  "model": "cross-encoder/nli-deberta-v3-small",
+  "cases": [
+    {
+      "id": "nli-001",
+      "label": "contradiction",
+      "description": "SOP: 전원 차단 후 점검 / 조치계획: 가동 중 점검 — 명확한 모순",
+      "sop_chunk": "Before any inspection or maintenance, shut down the machine completely and lock out the power supply. Never inspect or adjust components while the machine is running.",
+      "action_step": "Inspect the spindle bearing and adjust tension while the machine is running at reduced speed.",
+      "expected_nli": "contradiction",
+      "expected_recommendation_cosine": "APPROVE",
+      "expected_recommendation_nli": "REJECT",
+      "note": "코사인 유사도는 'inspect', 'machine', 'running' 공유로 높은 점수 → APPROVE 오판. NLI는 contradiction 감지 → REJECT"
+    },
+    {
+      "id": "nli-002",
+      "label": "contradiction",
+      "description": "SOP: 냉각 후 작업 / 조치계획: 즉시 작업",
+      "sop_chunk": "Allow the tool to cool down for at least 30 minutes before replacement. Hot tools can cause burns and measurement errors.",
+      "action_step": "Replace the worn tool immediately without waiting for the tool to cool down to speed up production.",
+      "expected_nli": "contradiction",
+      "expected_recommendation_cosine": "APPROVE",
+      "expected_recommendation_nli": "REJECT",
+      "note": "SOP는 30분 냉각을 명시하나 조치계획은 즉시 교체를 지시 — contradiction"
+    },
+    {
+      "id": "nli-003",
+      "label": "entailment",
+      "description": "SOP: 공구 교체 절차 / 조치계획: SOP 절차 준수",
+      "sop_chunk": "Stop the machine after the current cycle completes. Remove the worn tool from the spindle and replace with a new tool of the same specification.",
+      "action_step": "Stop the CNC machine after the current cycle and replace the worn tool with a new tool of the same specification.",
+      "expected_nli": "entailment",
+      "expected_recommendation_cosine": "APPROVE",
+      "expected_recommendation_nli": "APPROVE",
+      "note": "조치계획이 SOP를 충실히 따름 — 두 방식 모두 APPROVE"
+    },
+    {
+      "id": "nli-004",
+      "label": "neutral",
+      "description": "SOP: 공구 교체 절차 / 조치계획: 관련 없는 센서 보정",
+      "sop_chunk": "Stop the machine after the current cycle completes. Remove the worn tool from the spindle and replace with a new tool of the same specification.",
+      "action_step": "Calibrate the temperature sensor to ensure accurate readings for predictive maintenance.",
+      "expected_nli": "neutral",
+      "expected_recommendation_cosine": "REVIEW",
+      "expected_recommendation_nli": "REVIEW",
+      "note": "주제가 다르지만 모순도 아님 — neutral은 REVIEW로 라우팅"
+    },
+    {
+      "id": "nli-005",
+      "label": "contradiction",
+      "description": "SOP: 안전장비 착용 필수 / 조치계획: 안전장비 생략",
+      "sop_chunk": "Always wear appropriate PPE including safety glasses, heat-resistant gloves, and steel-toed boots before performing any maintenance on the CNC machine.",
+      "action_step": "Perform the tool replacement quickly without PPE to minimize downtime.",
+      "expected_nli": "contradiction",
+      "expected_recommendation_cosine": "APPROVE",
+      "expected_recommendation_nli": "REJECT",
+      "note": "안전 절차 위반 — SOP는 PPE 필수, 조치계획은 생략. 코사인은 'tool', 'replacement', 'maintenance' 공유로 높은 점수"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "contradiction": 3,
+    "entailment": 1,
+    "neutral": 1,
+    "cosine_false_approve": 3,
+    "nli_correct_reject": 3
+  }
+}

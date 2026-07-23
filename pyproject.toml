@@ -30,6 +30,7 @@ dependencies = [
     "fastmcp>=3.4.4",
     "scikit-learn>=1.9.0",
     "xgboost>=3.2.0",
+    "sentence-transformers>=3.0.0",
 ]
 
 [project.optional-dependencies]
