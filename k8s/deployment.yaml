@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgeai
+  namespace: forgeai
+  labels:
+    app: forgeai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forgeai
+  template:
+    metadata:
+      labels:
+        app: forgeai
+    spec:
+      containers:
+        - name: forgeai
+          image: forgeai:latest
+          # k3s 로컬 빌드 시: imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: forgeai-config
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: chroma-data
+              mountPath: /data/chroma
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+            # rule-only 모드(503)는 readiness 실패로 간주 — 정상 Ollama 연결 후 트래픽 수신
+            successThreshold: 1
+          livenessProbe:
+            # exec으로 2xx/503 모두 허용 — 앱이 응답하면 살아있는 것으로 판단
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  code=$(python -c "import urllib.request; r=urllib.request.urlopen('http://localhost:8000/api/v1/health'); print(r.status)" 2>/dev/null || echo 0)
+                  [ "$code" -ge 200 ] && [ "$code" -lt 600 ]
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12  # 최대 120초 대기
+      volumes:
+        - name: chroma-data
+          persistentVolumeClaim:
+            claimName: chroma-data
