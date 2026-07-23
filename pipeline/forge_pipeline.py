@@ -39,6 +39,7 @@ class PipelineMetrics(BaseModel):
     early_exit: bool = False
     retry_count: int = 0
     stages_completed: list[str] = []
+    mode: str = "full"  # "full" | "rule-only"
 
 
 class PipelineResult(BaseModel):
@@ -518,6 +519,57 @@ class ForgePipeline:
         builder.add_edge("routing_gate", END)
 
         return builder.compile()
+
+    # ── rule-only entry point ──────────────────────────────────────────────────
+
+    async def run_rule_only(self, log: EquipmentLog, correlation_id: str) -> PipelineResult:
+        """Ollama 불능 시 Rule Engine + ML predictor만 실행하는 폴백 경로."""
+        logger.warning({
+            "event": "pipeline_rule_only_mode",
+            "correlation_id": correlation_id,
+            "equipment_id": log.equipment_id,
+            "reason": "ollama_unavailable",
+        })
+
+        state = _GraphState(log=log, correlation_id=correlation_id)
+        state_updates = await self._node_risk_assessment(state)
+        state = state.model_copy(update=state_updates)
+
+        risk_level = state.risk_assessment.risk_level if state.risk_assessment else "UNKNOWN"
+        inp = RoutingInput(
+            risk_level=risk_level,
+            has_anomaly=False,
+            plan_step_count=0,
+            retry_count=0,
+            max_retries=get_settings().pipeline_max_retries,
+            recommendation=None,
+            verdict_conflict=False,
+        )
+        routing_decision = apply_routing_rules(inp)
+
+        metrics = PipelineMetrics(
+            risk_level=risk_level,
+            early_exit=True,
+            retry_count=0,
+            stages_completed=state.stages_completed + ["routing_gate"],
+            mode="rule-only",
+        )
+
+        logger.info({
+            "event": "pipeline_complete",
+            "correlation_id": correlation_id,
+            "equipment_id": log.equipment_id,
+            "risk_level": risk_level,
+            "early_exit": True,
+            "mode": "rule-only",
+        })
+
+        return PipelineResult(
+            correlation_id=correlation_id,
+            risk_assessment=state.risk_assessment,
+            routing_decision=routing_decision,
+            metrics=metrics,
+        )
 
     # ── public entry point ─────────────────────────────────────────────────────
 

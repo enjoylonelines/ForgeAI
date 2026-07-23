@@ -34,15 +34,20 @@ class CSVAnalyzeResult(BaseModel):
 @router.post("/analyze")
 async def analyze(request: Request, log: EquipmentLog) -> Response:
     correlation_id = request.headers.get("X-Correlation-ID") or uuid.uuid4().hex
+    ollama_ok = await ollama_health()
+    pipeline = ForgePipeline()
     try:
-        pipeline = ForgePipeline()
-        result = await pipeline.run(log, correlation_id)
-    except MaxRetriesExceededError as exc:
-        raise HTTPException(status_code=503, detail={"error": "llm_unavailable", "message": str(exc), "correlation_id": correlation_id})
+        if ollama_ok:
+            result = await pipeline.run(log, correlation_id)
+        else:
+            result = await pipeline.run_rule_only(log, correlation_id)
+    except MaxRetriesExceededError:
+        # LLM이 중간에 사망한 경우에도 rule-only 폴백
+        result = await pipeline.run_rule_only(log, correlation_id)
     except ParseOutputError as exc:
         raise HTTPException(status_code=422, detail={"error": "parse_error", "message": str(exc), "correlation_id": correlation_id})
 
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = {"X-Mode": result.metrics.mode}
     rec = result.validation_result.recommendation if result.validation_result else None
     if rec == "REJECT":
         headers["X-Plan-Status"] = "REJECTED"
@@ -183,13 +188,23 @@ async def health() -> JSONResponse:
     except Exception:
         doc_count = -1
 
-    status = "ok" if (ollama_ok and chroma_ok) else "degraded"
+    if ollama_ok and chroma_ok:
+        status, http_code = "ok", 200
+    elif not chroma_ok:
+        # ChromaDB 없이는 SOP 검색·임베딩 불가 — 근본적 장애
+        status, http_code = "error", 503
+    else:
+        # Ollama만 불능 → rule-only 모드로 요청 처리 가능, readiness 통과
+        status, http_code = "degraded", 200
+
+    mode = "full" if ollama_ok else "rule-only"
     return JSONResponse(
         content={
             "status": status,
+            "mode": mode,
             "ollama": "ok" if ollama_ok else "error",
             "chromadb": "ok" if chroma_ok else "error",
             "collection_doc_count": doc_count,
         },
-        status_code=200 if status == "ok" else 503,
+        status_code=http_code,
     )
