@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -116,9 +117,10 @@ class NLIHybridStrategy(ValidationStrategy):
 
         if best_chunk_id and best_chunk_id in sop_text_map:
             try:
-                result = NLIValidator.predict(
-                    hypothesis=action,
-                    premise=sop_text_map[best_chunk_id],
+                result = await asyncio.to_thread(
+                    NLIValidator.predict,
+                    action,
+                    sop_text_map[best_chunk_id],
                 )
                 nli_label = result.label
                 if result.contradiction_score >= self._threshold:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 from datetime import datetime, timezone
 
@@ -188,15 +187,6 @@ class HallucinationValidatorAgent(BaseAgent):
         except (MaxRetriesExceededError, Exception) as exc:
             logger.warning({"event": "validator_explanation_failed", "error": str(exc)})
             return None
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-    return dot / (norm_a * norm_b)
 
 
 def _split_sentences(text: str, min_len: int = 15) -> list[str]:

@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agents.hallucination_validator import HallucinationValidatorAgent, _cosine_similarity
+from agents.hallucination_validator import HallucinationValidatorAgent
+from agents.validation_strategy import _cosine_similarity
 from models.action_plan import ActionPlan, ActionStep
 from models.sop_context import SOPContext
 from models.validation_result import ValidationResult
