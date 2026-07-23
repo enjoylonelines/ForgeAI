@@ -157,4 +157,86 @@ python stream_simulator.py data/ai4i.csv --lookahead 10 --delay 0.5
 | `POST /diagnose` | 자연어 쿼리 → NL 진단 파이프라인 |
 | `POST /control/plan` | 조치 계획 → 제어 명령 변환 |
 | `POST /ingest` | SOP 문서 ChromaDB 적재 |
-| `GET /health` | Ollama · ChromaDB 상태 확인 |
+| `GET /health` | Ollama · ChromaDB 상태 확인, `mode` 필드 포함 |
+
+---
+
+## 배포 — Docker Compose & k3s
+
+### Docker Compose (로컬 개발 / 단일 노드)
+
+```bash
+docker compose up
+```
+
+`docker-compose.yml` 서비스 3개: `ollama` → `ollama-init`(모델 pull) → `app`.  
+healthcheck 기반 의존성 순서로 기동한다.
+
+### k3s 경량 쿠버네티스
+
+프로덕션 수준 운영 고려를 위한 k3s 매니페스트를 `k8s/` 디렉토리에 포함한다.
+
+```bash
+kubectl apply -k k8s/          # 전체 배포
+kubectl get pods -n forgeai    # 상태 확인
+```
+
+**구성 파일:**
+
+| 파일 | 역할 |
+|------|------|
+| `namespace.yaml` | `forgeai` 네임스페이스 |
+| `configmap.yaml` | 환경변수 (`OLLAMA_BASE_URL` 등) |
+| `pvc.yaml` | ChromaDB(5Gi) + Ollama 모델(20Gi) 퍼시스턴스 |
+| `ollama-deployment.yaml` | Ollama Deployment + 모델 초기 pull initContainer |
+| `deployment.yaml` | ForgeAI 앱 + readiness/liveness/startup probe |
+| `service.yaml` | ClusterIP (내부 통신), NodePort 주석 포함 |
+| `kustomization.yaml` | 위 파일 일괄 적용 진입점 |
+
+**Probe 설계:**
+
+- `startupProbe`: 최대 120초 대기 (Ollama 모델 로드 시간 확보)
+- `readinessProbe`: `GET /api/v1/health` → 200일 때만 트래픽 수신
+- `livenessProbe`: exec 방식으로 HTTP 응답 여부만 확인 (503도 통과 — 앱이 살아있으면 재시작 안 함)
+
+---
+
+## LLM 장애 시 Fail-safe (rule-only 모드)
+
+Ollama가 불능 상태일 때도 Rule Engine 단독으로 분석 요청을 처리한다.
+
+```
+POST /api/v1/analyze
+        │
+        ▼
+ ollama_health() 체크
+        │
+   ┌────┴─────────────────┐
+   │ UP                   │ DOWN (또는 MaxRetriesExceededError)
+   ▼                      ▼
+ForgePipeline          run_rule_only()
+ .run()                    │
+   │                  Rule Engine + ML predictor
+   │                  라우팅 규칙 적용
+   └──────┬────────────────┘
+          ▼
+   PipelineResult
+   metrics.mode = "full" | "rule-only"
+   X-Mode 응답 헤더
+```
+
+**rule-only 모드 동작:**
+
+- LLM 에이전트(Perception, Diagnostic, ActionPlan, Validator) 전체 생략
+- Rule Engine(결정론적 FDC) + ML predictor(보조 신호)만 실행
+- 라우팅 규칙(R-1~R-F) 적용 후 결과 반환
+
+**`/health` 응답의 `mode` 필드:**
+
+| 상태 | HTTP | `mode` | readiness probe |
+|------|------|--------|----------------|
+| Ollama + ChromaDB 정상 | 200 | `"full"` | ✅ 통과 |
+| Ollama 불능 (ChromaDB 정상) | 200 | `"rule-only"` | ✅ 통과 (폴백 서빙 가능) |
+| ChromaDB 불능 | 503 | — | ❌ 차단 |
+
+**관련 파일:** `pipeline/forge_pipeline.py:run_rule_only()`, `api/routes.py:/analyze`, `tests/test_failsafe.py`
