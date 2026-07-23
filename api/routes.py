@@ -34,8 +34,8 @@ class CSVAnalyzeResult(BaseModel):
 @router.post("/analyze")
 async def analyze(request: Request, log: EquipmentLog) -> Response:
     correlation_id = request.headers.get("X-Correlation-ID") or uuid.uuid4().hex
-    pipeline = ForgePipeline()
     ollama_ok = await ollama_health()
+    pipeline = ForgePipeline()
     try:
         if ollama_ok:
             result = await pipeline.run(log, correlation_id)

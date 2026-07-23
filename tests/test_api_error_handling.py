@@ -8,8 +8,9 @@ from httpx import ASGITransport, AsyncClient
 
 from agents.base import MaxRetriesExceededError, ParseOutputError
 from main import app
-from pipeline.forge_pipeline import PipelineMetrics, PipelineResult
+from models.risk_assessment import RiskAssessment
 from models.validation_result import ValidationResult
+from pipeline.forge_pipeline import PipelineMetrics, PipelineResult
 
 _VALID_LOG_BODY = {
     "equipment_id": "M-12345",
@@ -78,15 +79,11 @@ def _make_pipeline_result(recommendation: str) -> PipelineResult:
 
 async def test_analyze_llm_unavailable_falls_back_to_rule_only(api_client):
     """/analyze에서 Ollama 연결 실패 시 rule-only 폴백으로 200을 반환한다."""
-    from models.risk_assessment import RiskAssessment
-    from pipeline.forge_pipeline import PipelineResult, PipelineMetrics
-    from datetime import datetime, timezone
-
     rule_only_result = PipelineResult(
         correlation_id="test-cid",
         risk_assessment=RiskAssessment(
             equipment_id="M-12345",
-            assessed_at=datetime.now(timezone.utc),
+            assessed_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
             risk_level="WARNING",
             risk_factors=[],
             summary="Rule-only fallback",
