@@ -95,6 +95,30 @@ def _apply_routing_bridge(decision: RoutingDecision, state: _GraphState) -> None
         })
 
 
+def _failure_reason_for_routing(state: _GraphState) -> str | None:
+    if state.diagnostic_result:
+        for call in state.diagnostic_result.tool_calls:
+            if "error" not in call.output:
+                continue
+            if call.tool_name not in {"get_sensor_thresholds", "calculate_risk_index", "alert_maintenance_team"}:
+                return "unknown_tool"
+            return "invalid_tool_arguments"
+
+        if len(state.diagnostic_result.tool_calls) >= DiagnosticAgent.MAX_ITERATIONS and not state.diagnostic_result.summary:
+            return "max_iterations_exceeded"
+
+    if state.validation_result and state.validation_result.contradiction_count > 0:
+        return "grounding_contradiction"
+
+    if state.sop_context is not None and len(state.sop_context.chunks) == 0:
+        return "empty_sop_context"
+
+    if state.validation_result and state.validation_result.recommendation == "REVIEW":
+        return "human_review_required"
+
+    return None
+
+
 # ── Pipeline ───────────────────────────────────────────────────────────────────
 
 class ForgePipeline:
@@ -447,6 +471,7 @@ class ForgePipeline:
             max_retries=s.pipeline_max_retries,
             recommendation=state.validation_result.recommendation if state.validation_result else None,
             verdict_conflict=verdict_conflict,
+            failure_reason=_failure_reason_for_routing(state),
         )
         decision = apply_routing_rules(inp)
 

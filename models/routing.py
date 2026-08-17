@@ -15,6 +15,7 @@ class RoutingInput(BaseModel):
     max_retries: int
     recommendation: str | None = None
     verdict_conflict: bool = False
+    failure_reason: str | None = None
 
 
 class RoutingDecision(BaseModel):
