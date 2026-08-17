@@ -1,0 +1,128 @@
+{
+  "condition": "llm_only",
+  "repetition": 2,
+  "response": {
+    "scenario_id": "twf-osf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "과도 변형 고장(OSF): M형 장비의 공구 마모×토크 값이 12,528 min·Nm로 경계값 12,000 min·Nm를 초과한 안전 우선 상태",
+      "contributing_failure_modes": [
+        "공구 마모 고장(TWF): 공구 T-21의 누적 마모 시간이 216분으로 경고·교체 경계인 200분을 초과함",
+        "토크 상승을 동반한 절삭 불안정: 마지막 생산 주기에서 절삭 토크가 상승했고 가공물에 채터 자국이 발생함"
+      ],
+      "root_cause": "확인 가능한 직접 원인은 교체 경계를 넘긴 공구 T-21을 토크 58 Nm 조건에서 계속 사용하여 M형 과도 변형 지표가 허용 경계를 초과한 것이다. 최초 물리적 원인과 각 고장 모드의 정확한 선후관계는 추가 점검 없이 확정할 수 없다.",
+      "causal_chain": [
+        {
+          "statement": "공구 T-21의 마모 시간이 216분으로 200분 경계를 16분 초과했다.",
+          "evidence_ids": []
+        },
+        {
+          "statement": "현재 마모 시간과 토크의 곱은 12,528 min·Nm로 M형 과도 변형 경계 12,000 min·Nm를 528 min·Nm 초과했다.",
+          "evidence_ids": []
+        },
+        {
+          "statement": "동일 생산 주기에 토크 상승과 채터 자국이 관찰되어 절삭 상태가 불안정했음이 확인된다.",
+          "evidence_ids": []
+        },
+        {
+          "statement": "경계 초과 공구 마모와 토크 상승이 동시에 존재하면서 과도 변형 위험 상태를 구성했다.",
+          "evidence_ids": []
+        }
+      ],
+      "confidence": 0.93
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "CNC-02의 가공을 즉시 중지하고 재가동을 방지하도록 격리한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 2,
+        "action": "스핀들이 완전히 정지하고 설비 에너지가 안전하게 차단된 것을 확인한 뒤에만 점검을 시작한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 3,
+        "action": "경계값을 초과한 절삭 공구 T-21을 사용 중지하고 교체 대상으로 분리한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 4,
+        "action": "공구 홀더, 스핀들, 베어링, 체결부 및 관련 구동부에서 풀림, 손상, 변형, 비정상 유격 또는 진동 흔적이 있는지 점검한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 5,
+        "action": "채터 자국이 발생한 가공물과 마지막 생산 주기의 영향 가능 제품을 격리하고 품질 검사를 실시한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 6,
+        "action": "새 공구 장착 후 공구 체결, 정렬, 런아웃, 절삭 조건 및 토크 측정 계통을 확인한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 7,
+        "action": "무부하 점검 후 저부하 시험 가공을 수행하여 토크와 진동이 안정적이고 과도 변형 지표가 경계 미만인지 확인한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 8,
+        "action": "시험 가공품의 표면 상태와 치수를 검사하고 이상이 없을 때만 CNC-02를 생산에 복귀시킨다.",
+        "evidence_ids": []
+      }
+    ],
+    "claims": [
+      {
+        "claim": "공구 마모 시간 216분은 경계 200분을 초과한다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "공구 마모×토크 12,528 min·Nm는 M형 과도 변형 경계 12,000 min·Nm를 초과한다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "마지막 생산 주기에 절삭 토크 상승과 채터 자국이 관찰되었다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "입력값 기준으로 과도 변형 고장 위험과 공구 마모 고장이 동시에 성립한다.",
+        "evidence_ids": []
+      }
+    ],
+    "uncertainties": [
+      "공구 마모가 토크 상승과 채터를 직접 유발했는지는 검증되지 않았다.",
+      "채터의 원인이 공구 마모인지, 공구 체결 불량인지, 스핀들·베어링 이상인지, 절삭 조건인지 확정되지 않았다.",
+      "스핀들 또는 구동계에 실제 영구 변형이나 손상이 발생했는지는 확인되지 않았다.",
+      "토크 센서와 공구 마모 시간 기록의 정확성은 검증되지 않았다.",
+      "회전 속도 1,450 rpm과 온도 측정값이 해당 장비 및 공정의 허용 범위인지 판단할 경계 정보가 없다.",
+      "제시된 정비 순서는 일반적인 안전 원칙에 따른 제안이며 승인된 설비별 SOP로 검증되지 않았다.",
+      "생산 복귀를 위한 구체적인 허용 토크, 진동, 런아웃 및 품질 판정 기준은 제공되지 않았다."
+    ]
+  },
+  "score": {
+    "passed_checks": 7,
+    "total_checks": 13,
+    "pass_rate": 0.5385,
+    "checks": {
+      "primary_osf": true,
+      "detects_twf_contributor": true,
+      "explains_twf_osf_interaction": false,
+      "feed_hold_safe_sequence": false,
+      "damage_inspection": false,
+      "tool_replacement_and_reset": false,
+      "cutting_parameter_review": false,
+      "controlled_return": false,
+      "no_unprovided_procedures": true,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true
+    },
+    "cross_sop_coverage": false,
+    "invalid_evidence_ids": [],
+    "unprovided_procedures": [],
+    "action_count": 8,
+    "uncertainty_count": 7
+  }
+}

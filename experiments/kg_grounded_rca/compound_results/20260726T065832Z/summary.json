@@ -1,0 +1,59 @@
+{
+  "experiment": "compound-failure-grounding",
+  "scenario_id": "twf-osf-compound-001",
+  "generated_at": "2026-07-26T07:04:10.854201+00:00",
+  "repetitions_per_condition": 3,
+  "summary": {
+    "llm_only": {
+      "runs": 3,
+      "mean_pass_rate": 0.5898,
+      "primary_osf_accuracy": 1.0,
+      "twf_contributor_detection": 1.0,
+      "interaction_explanation_rate": 0.0,
+      "unprovided_procedure_runs": 1,
+      "complete_action_plan_runs": 0,
+      "cross_sop_coverage_runs": 0,
+      "action_count_values": [
+        7,
+        8,
+        7
+      ]
+    },
+    "single_label_osf": {
+      "runs": 3,
+      "mean_pass_rate": 0.8462,
+      "primary_osf_accuracy": 1.0,
+      "twf_contributor_detection": 0.0,
+      "interaction_explanation_rate": 0.0,
+      "unprovided_procedure_runs": 0,
+      "complete_action_plan_runs": 3,
+      "cross_sop_coverage_runs": 0,
+      "action_count_values": [
+        5,
+        5,
+        5
+      ]
+    },
+    "multi_path_kg_sop": {
+      "runs": 3,
+      "mean_pass_rate": 1.0,
+      "primary_osf_accuracy": 1.0,
+      "twf_contributor_detection": 1.0,
+      "interaction_explanation_rate": 1.0,
+      "unprovided_procedure_runs": 0,
+      "complete_action_plan_runs": 3,
+      "cross_sop_coverage_runs": 3,
+      "action_count_values": [
+        7,
+        8,
+        8
+      ]
+    }
+  },
+  "limitations": [
+    "One synthetic compound-failure scenario cannot establish general RCA quality.",
+    "Graph and SOP evidence are supplied in the prompt rather than queried from Neo4j.",
+    "The deterministic scorer cannot replace blinded maintenance-expert review."
+  ],
+  "rescored_at": "2026-07-26T07:07:15.511387+00:00"
+}

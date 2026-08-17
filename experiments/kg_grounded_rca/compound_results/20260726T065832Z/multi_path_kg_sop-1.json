@@ -1,0 +1,176 @@
+{
+  "condition": "multi_path_kg_sop",
+  "repetition": 1,
+  "response": {
+    "scenario_id": "twf-osf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "OSF(복합 기계적 과부하): 공구 마모×토크가 M형 과부하 경계인 12,000 min·Nm를 초과한 상태",
+      "contributing_failure_modes": [
+        "TWF(공구 수명 초과): 공구 마모 시간이 200분 경계를 초과한 상태",
+        "TWF로 인한 절삭 저항 증가가 복합 기계적 과부하에 기여"
+      ],
+      "root_cause": "수명을 초과한 T-21 공구의 마모로 절삭 저항이 증가했고, 이것이 토크와 결합되어 복합 기계적 과부하 및 OSF를 유발한 것으로 판단된다.",
+      "causal_chain": [
+        {
+          "statement": "CNC-02의 스핀들이 T-21 공구를 사용한다.",
+          "evidence_ids": [
+            "G1",
+            "G2"
+          ]
+        },
+        {
+          "statement": "공구 마모 시간이 200분을 초과하면 TWF가 트리거되며, 그 원인은 공구 수명 초과이다.",
+          "evidence_ids": [
+            "G6",
+            "G7"
+          ]
+        },
+        {
+          "statement": "TWF는 절삭 저항 증가로 이어질 수 있다.",
+          "evidence_ids": [
+            "G8"
+          ]
+        },
+        {
+          "statement": "증가한 절삭 저항은 복합 기계적 과부하에 기여한다.",
+          "evidence_ids": [
+            "G9"
+          ]
+        },
+        {
+          "statement": "공구 마모×토크가 12,000 min·Nm를 초과하면 OSF가 트리거되며, OSF는 복합 기계적 과부하로 발생한다.",
+          "evidence_ids": [
+            "G3",
+            "G4"
+          ]
+        }
+      ],
+      "confidence": 0.99
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "즉시 Feed Hold를 적용한다. 스핀들은 회전 상태로 유지하면서 공구를 안전 위치로 이동한 뒤 스핀들을 정지한다.",
+        "evidence_ids": [
+          "O1"
+        ]
+      },
+      {
+        "step_number": 2,
+        "action": "공구 파손 여부, 토크 센서, 스핀들 런아웃, 공작물 클램프, 이송축 및 볼스크루의 손상이나 비정상 유격을 점검한다.",
+        "evidence_ids": [
+          "O2"
+        ]
+      },
+      {
+        "step_number": 3,
+        "action": "T-21 공구를 제거하고 마모·파손·치핑을 육안 점검한 뒤 공구 프리세터로 실제 마모량을 측정한다.",
+        "evidence_ids": [
+          "T1"
+        ]
+      },
+      {
+        "step_number": 4,
+        "action": "규격에 맞는 새 공구를 설치하고 공구 길이 오프셋과 공구 오프셋을 재설정하며 공구 수명 카운터를 초기화한다.",
+        "evidence_ids": [
+          "O4",
+          "T2"
+        ]
+      },
+      {
+        "step_number": 5,
+        "action": "이송량, 회전 속도, 절입 깊이를 검토한다. 고토크 구간의 이송량을 15~25% 낮추고 공구 수명 설정 단축 필요성을 검토한다.",
+        "evidence_ids": [
+          "O3"
+        ]
+      },
+      {
+        "step_number": 6,
+        "action": "드라이런으로 프로그램 경로를 검증한 다음, 폐기 가능한 소재에서 이송 오버라이드 30%로 시험 절삭하고 점진적으로 정상 속도로 복귀한다.",
+        "evidence_ids": [
+          "O5",
+          "T3"
+        ]
+      },
+      {
+        "step_number": 7,
+        "action": "최근 생산된 부품을 최소 3개 검사하고 감독자 승인을 받은 후에만 생산을 재개한다.",
+        "evidence_ids": [
+          "T3",
+          "T4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim": "OSF는 공구 마모×토크가 12,000 min·Nm를 초과할 때 트리거된다.",
+        "evidence_ids": [
+          "G3"
+        ]
+      },
+      {
+        "claim": "OSF의 원인은 복합 기계적 과부하이다.",
+        "evidence_ids": [
+          "G4"
+        ]
+      },
+      {
+        "claim": "TWF는 공구 마모 시간이 200분을 초과할 때 트리거된다.",
+        "evidence_ids": [
+          "G6"
+        ]
+      },
+      {
+        "claim": "TWF의 원인은 공구 수명 초과이다.",
+        "evidence_ids": [
+          "G7"
+        ]
+      },
+      {
+        "claim": "TWF는 절삭 저항 증가로 이어질 수 있으며, 증가한 절삭 저항은 복합 기계적 과부하에 기여한다.",
+        "evidence_ids": [
+          "G8",
+          "G9"
+        ]
+      },
+      {
+        "claim": "OSF와 TWF에는 각각 SOP-MNT-004와 SOP-MNT-001의 완화 절차가 적용된다.",
+        "evidence_ids": [
+          "G5",
+          "G10"
+        ]
+      }
+    ],
+    "uncertainties": [
+      "T-21 공구의 실제 파손·치핑 정도는 분해 점검과 프리세터 측정 전까지 확정할 수 없다.",
+      "스핀들 런아웃, 토크 센서, 클램프, 이송축 또는 볼스크루의 손상 여부는 점검 전까지 확정할 수 없다.",
+      "채터 마크가 공구 마모만으로 발생했는지, 클램프·런아웃·이송계통 이상도 관여했는지는 현재 증거만으로 분리할 수 없다.",
+      "고토크 구간의 구체적인 이송량·회전 속도·절입 깊이 조정값과 공구 수명 단축값은 검토 및 시험 절삭 전까지 확정할 수 없다."
+    ]
+  },
+  "score": {
+    "passed_checks": 13,
+    "total_checks": 13,
+    "pass_rate": 1.0,
+    "checks": {
+      "primary_osf": true,
+      "detects_twf_contributor": true,
+      "explains_twf_osf_interaction": true,
+      "feed_hold_safe_sequence": true,
+      "damage_inspection": true,
+      "tool_replacement_and_reset": true,
+      "cutting_parameter_review": true,
+      "controlled_return": true,
+      "no_unprovided_procedures": true,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true
+    },
+    "cross_sop_coverage": true,
+    "invalid_evidence_ids": [],
+    "unprovided_procedures": [],
+    "action_count": 7,
+    "uncertainty_count": 4
+  }
+}

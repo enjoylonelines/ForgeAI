@@ -1,0 +1,136 @@
+{
+  "condition": "single_label_osf",
+  "repetition": 1,
+  "response": {
+    "scenario_id": "twf-osf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "과도 변형 고장(OSF, Overstrain Failure)",
+      "contributing_failure_modes": [
+        "복합 기계적 과부하(combined_mechanical_overstrain)"
+      ],
+      "root_cause": "공구 마모×토크가 M형 과도 변형 경계인 12,000 min·Nm를 초과하여 발생한 복합 기계적 과부하",
+      "causal_chain": [
+        {
+          "statement": "CNC-02의 스핀들은 공구 T-21을 사용한다.",
+          "evidence_ids": [
+            "G1",
+            "G2"
+          ]
+        },
+        {
+          "statement": "공구 마모×토크가 12,000 min·Nm를 초과하면 OSF가 유발된다.",
+          "evidence_ids": [
+            "G3"
+          ]
+        },
+        {
+          "statement": "OSF의 직접 원인으로 복합 기계적 과부하가 확인된다.",
+          "evidence_ids": [
+            "G4"
+          ]
+        },
+        {
+          "statement": "OSF는 SOP-MNT-004에 따라 완화해야 한다.",
+          "evidence_ids": [
+            "G5"
+          ]
+        }
+      ],
+      "confidence": 0.98
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "즉시 Feed Hold를 적용하되 스핀들 회전은 유지한다. 공구를 안전 위치로 이동한 뒤 스핀들을 정지한다.",
+        "evidence_ids": [
+          "O1"
+        ]
+      },
+      {
+        "step_number": 2,
+        "action": "공구 파손 여부, 토크 센서, 스핀들 런아웃, 공작물 클램프, 이송축 및 볼스크루의 손상이나 비정상 유격을 점검한다.",
+        "evidence_ids": [
+          "O2"
+        ]
+      },
+      {
+        "step_number": 3,
+        "action": "이송속도, 회전속도 및 절입 깊이를 검토한다. 고토크 구간의 이송속도를 15~25% 낮추고 공구 수명 설정 단축 필요성을 검토한다.",
+        "evidence_ids": [
+          "O3"
+        ]
+      },
+      {
+        "step_number": 4,
+        "action": "새 공구를 장착하고 공구 오프셋을 재설정한다.",
+        "evidence_ids": [
+          "O4"
+        ]
+      },
+      {
+        "step_number": 5,
+        "action": "드라이런으로 프로그램 경로를 검증한 후 30% 이송 오버라이드에서 시험 절삭하고, 이상이 없을 때 점진적으로 정상 속도로 복귀한다.",
+        "evidence_ids": [
+          "O5"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim": "CNC-02에는 스핀들이 있으며 해당 스핀들은 공구 T-21을 사용한다.",
+        "evidence_ids": [
+          "G1",
+          "G2"
+        ]
+      },
+      {
+        "claim": "12,528 min·Nm는 12,000 min·Nm 경계를 초과하므로 OSF 트리거 조건에 해당한다.",
+        "evidence_ids": [
+          "G3"
+        ]
+      },
+      {
+        "claim": "지원되는 OSF 원인 기전은 복합 기계적 과부하이다.",
+        "evidence_ids": [
+          "G4"
+        ]
+      },
+      {
+        "claim": "OSF의 승인된 완화 절차는 SOP-MNT-004이다.",
+        "evidence_ids": [
+          "G5"
+        ]
+      }
+    ],
+    "uncertainties": [
+      "216분의 공구 마모가 별도의 독립 고장 모드를 구성한다는 인과 증거는 제공되지 않았으므로 추가 고장 모드로 분류하지 않았다.",
+      "마지막 생산 주기의 토크 상승과 채터 마크가 OSF의 원인인지 결과인지 판단할 권위 있는 인과 증거가 없다.",
+      "복합 기계적 과부하에서 공구 마모, 절삭 조건, 센서 이상, 스핀들 런아웃, 클램프 또는 이송계통 문제가 각각 어느 정도 기여했는지는 점검 전까지 불확실하다."
+    ]
+  },
+  "score": {
+    "passed_checks": 11,
+    "total_checks": 13,
+    "pass_rate": 0.8462,
+    "checks": {
+      "primary_osf": true,
+      "detects_twf_contributor": false,
+      "explains_twf_osf_interaction": false,
+      "feed_hold_safe_sequence": true,
+      "damage_inspection": true,
+      "tool_replacement_and_reset": true,
+      "cutting_parameter_review": true,
+      "controlled_return": true,
+      "no_unprovided_procedures": true,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true
+    },
+    "cross_sop_coverage": false,
+    "invalid_evidence_ids": [],
+    "unprovided_procedures": [],
+    "action_count": 5,
+    "uncertainty_count": 3
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "condition": "kg_sop",
+  "repetition": 3,
+  "response": {
+    "scenario_id": "twf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "CNC-01 스핀들 절삭공구 T-17의 공구 마모 고장(TWF)",
+      "root_cause": "공구 사용시간 216분으로 정상 최대 수명 200분을 초과한 공구 수명 초과(tool_life_exceeded)",
+      "causal_chain": [
+        "CNC-01의 스핀들이 tool-T17을 사용한다.",
+        "tool-T17의 공구 사용시간이 200분을 초과하여 TWF가 유발된다.",
+        "TWF의 가장 유력한 원인은 공구 수명 초과이다.",
+        "TWF가 절삭 저항 증가로 이어지고, 증가한 절삭 저항이 높은 토크로 나타난다."
+      ],
+      "confidence": 0.96
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "현재 가공 사이클이 끝날 때까지 기다린 뒤 CNC 장비를 즉시 정지한다. 비상정지 버튼은 사용하지 않는다.",
+        "evidence_ids": [
+          "S1"
+        ]
+      },
+      {
+        "step_number": 2,
+        "action": "공구를 제거하여 마모, 파손 또는 치핑을 육안 검사하고, 공구 프리세터로 실제 마모량을 측정한다. 규격을 초과하면 공구를 폐기한다.",
+        "evidence_ids": [
+          "S2"
+        ]
+      },
+      {
+        "step_number": 3,
+        "action": "규격에 맞는 새 공구를 장착하고 공구 길이 오프셋과 공구 수명 카운터를 재설정한다.",
+        "evidence_ids": [
+          "S3"
+        ]
+      },
+      {
+        "step_number": 4,
+        "action": "스크랩 재료로 시험 절삭 1회를 수행하고 최근 생산품을 최소 3개 검사한다. 감독자 승인 후에만 생산을 재개한다.",
+        "evidence_ids": [
+          "S4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim": "CNC-01에는 스핀들이 있으며, 해당 스핀들은 tool-T17을 사용한다.",
+        "evidence_ids": [
+          "G1",
+          "G2"
+        ]
+      },
+      {
+        "claim": "tool-T17은 tool_wear_min으로 관측되며, 공구 사용시간이 200분을 초과하면 TWF가 유발된다.",
+        "evidence_ids": [
+          "G3",
+          "G4"
+        ]
+      },
+      {
+        "claim": "TWF는 공구 수명 초과로 인해 발생한다.",
+        "evidence_ids": [
+          "G5"
+        ]
+      },
+      {
+        "claim": "TWF는 절삭 저항 증가를 일으킬 수 있고, 이는 높은 토크로 나타난다.",
+        "evidence_ids": [
+          "G6",
+          "G7"
+        ]
+      },
+      {
+        "claim": "TWF는 SOP-MNT-001에 따라 완화할 수 있다.",
+        "evidence_ids": [
+          "G8"
+        ]
+      }
+    ],
+    "uncertainties": [
+      "표면 거칠기 이탈과 TWF 사이의 인과관계는 제공된 G1-G8에 명시되어 있지 않다.",
+      "회전속도 1251 rpm, 공기 온도 298.1 K, 공정 온도 308.6 K가 고장에 기여했는지는 제공된 근거만으로 판단할 수 없다.",
+      "공구의 실제 마모량, 파손 또는 치핑 여부는 제거 후 육안 검사와 공구 프리세터 측정 전까지 확정할 수 없다."
+    ]
+  },
+  "score": {
+    "passed_checks": 11,
+    "total_checks": 12,
+    "pass_rate": 0.9167,
+    "checks": {
+      "failure_mode_correct": true,
+      "root_cause_correct": true,
+      "no_unsupported_causes": true,
+      "no_unprovided_procedures": true,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": false,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true,
+      "controlled_stop": true,
+      "inspect_and_measure": true,
+      "replace_and_reset": true,
+      "trial_quality_approval": true
+    },
+    "unsupported_causes": [],
+    "unprovided_procedures": [],
+    "invalid_evidence_ids": [],
+    "claim_count": 5,
+    "action_count": 4,
+    "uncertainty_count": 3
+  }
+}
