@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-08-17T16:08:14.445145+00:00",
+  "mode": "live_api",
+  "case_path": "/Users/hb/Documents/code/ForgeAI/data/eval/agent_reliability_cases.jsonl",
+  "summary": {
+    "total_cases": 1,
+    "evaluated_cases": 1,
+    "passed_cases": 1,
+    "failed_cases": 0,
+    "latency_observed": true,
+    "token_usage_observed": true,
+    "monetary_cost_status": "unavailable"
+  },
+  "observability": {
+    "mode": "live_api",
+    "latency": {
+      "status": "observed",
+      "latency_ms": 1622,
+      "threshold_ms": null,
+      "threshold_status": "not_thresholded"
+    },
+    "token_usage": {
+      "status": "observed",
+      "prompt_tokens": 18,
+      "completion_tokens": 7,
+      "total_tokens": 25
+    },
+    "monetary_cost": {
+      "status": "unavailable",
+      "amount": null,
+      "currency": null,
+      "pricing_source": null
+    }
+  },
+  "result": {
+    "case_id": "AR-023",
+    "scenario": "live_reliability_case_is_opt_in_only",
+    "dependency_mode": "live_opt_in",
+    "status": "passed",
+    "llm_mode": "api",
+    "model": "gpt-4.1-mini",
+    "latency_ms": 1622,
+    "usage": {
+      "prompt_tokens": 18,
+      "completion_tokens": 7,
+      "total_tokens": 25,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "token_usage_status": "observed",
+    "monetary_cost_status": "unavailable",
+    "response": "ForgeAI live API reliability smoke OK",
+    "expected_response": "ForgeAI live API reliability smoke OK",
+    "response_ok": true
+  },
+  "limits": [
+    "This live API smoke calls only the configured OpenAI-compatible chat endpoint.",
+    "It does not run Ollama, NLI, Chroma reindexing, Langfuse, real alert channels, or live control.",
+    "It is not a full ForgePipeline benchmark and does not replace the deterministic mock reliability result.",
+    "Monetary cost is not computed from usage because no versioned pricing table is part of this repository contract."
+  ]
+}

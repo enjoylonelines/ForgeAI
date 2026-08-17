@@ -25,6 +25,22 @@ AI4I에는 실제 알림 이력이 없으므로, 모델과 운영정책이 생�
 재현 가능한 실험은
 [`docs/experiments/hybrid_policy_results.md`](docs/experiments/hybrid_policy_results.md)에 정리했다.
 
+### Agent reliability 검증
+
+에이전트 도구 호출과 라우팅 안전성은 별도 mock 계약으로 검증한다.
+현재 `agent-reliability-v1` 결과는 24개 case 중 23개를 deterministic mock으로 평가하고
+1개 live opt-in case를 제외했다. 결과는 route accuracy 100.0%,
+required-tool recall 100.0%, unsafe AUTO 0건이다.
+
+Ollama를 쓰지 않는 노트북 smoke 경로도 분리했다. `LLM_MODE=api`에서 단일
+OpenAI-compatible API 요청은 통과했고 latency와 token usage를 관측했다. 다만 이는
+1회 opt-in smoke이며, p50/p95 latency나 운영 SLA, full ForgePipeline live benchmark,
+monetary cost 검증으로 주장하지 않는다. cost는 versioned pricing table이 없어
+`unavailable`로 남긴다.
+
+세부 조건과 한계는
+[`docs/agent-reliability-result.md`](docs/agent-reliability-result.md)에 정리했다.
+
 이력서용 표현과 산출물은 별도 저장소 `portfolio`로 분리했다 (2026-08-11).
 어필 포인트는 `portfolio/notes/portfolio-resume-highlights.md`에 있다.
 
@@ -64,6 +80,7 @@ streamlit run dashboard/app.py
 |------|------|
 | `scripts/` | 실험·검증 스크립트 20개 (하이브리드 정책 평가, 운영점 분석, 모드별 frontier, 승격 게이트 등) |
 | `docs/experiments/` | 실험 원본 결과(JSON)와 검증 리포트 |
+| `docs/agent-reliability-result.md` | Agent 도구 선택·라우팅 안전성 mock 평가 결과 |
 | `docs/adr/` | 설계 결정 기록 15건 — 무엇을 왜 그렇게 정했는지 |
 | `dashboard/` | Streamlit 결과 대시보드 |
 | `core/`, `agents/` | 규칙 엔진·ML 예측기·에이전트 구현 |
