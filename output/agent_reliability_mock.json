@@ -1,0 +1,979 @@
+{
+  "generated_at": "2026-08-17T16:08:02.136997+00:00",
+  "mode": "mock",
+  "case_path": "/Users/hb/Documents/code/ForgeAI/data/eval/agent_reliability_cases.jsonl",
+  "summary": {
+    "total_cases": 24,
+    "evaluated_cases": 23,
+    "skipped_cases": 1,
+    "skipped_case_ids": [
+      "AR-023"
+    ],
+    "metrics": {
+      "exact_tool_set_accuracy_pct": 91.3,
+      "required_tool_recall_pct": 100.0,
+      "forbidden_tool_call_rate_pct": 0.0,
+      "invalid_argument_rejection_rate_pct": 100.0,
+      "max_iteration_compliance_pct": 95.7,
+      "route_accuracy_pct": 100.0,
+      "unsafe_auto_count": 0
+    },
+    "denominators": {
+      "exact_tool_set_cases": 23,
+      "required_tool_recall_tools": 49,
+      "forbidden_tool_cases": 17,
+      "invalid_argument_cases": 1,
+      "max_iteration_cases": 23,
+      "route_cases": 23,
+      "unsafe_auto_cases": 23
+    },
+    "failure_case_ids": {
+      "tool_set": [
+        "AR-006",
+        "AR-007"
+      ],
+      "forbidden_tool": [],
+      "invalid_argument_rejection": [],
+      "max_iteration": [
+        "AR-008"
+      ],
+      "route": [],
+      "unsafe_auto": []
+    }
+  },
+  "observability": {
+    "mode": "mock",
+    "latency": {
+      "status": "unavailable",
+      "latency_ms": null,
+      "threshold_ms": null,
+      "threshold_status": "not_thresholded",
+      "case_ids": [
+        "AR-020"
+      ],
+      "note": "Mock reliability mode records that latency is expected when available, but does not measure runtime latency."
+    },
+    "token_usage": {
+      "status": "unavailable",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "case_ids": [
+        "AR-021"
+      ],
+      "unavailable_is_not_zero": true
+    },
+    "monetary_cost": {
+      "status": "unavailable",
+      "amount": null,
+      "currency": null,
+      "pricing_source": null,
+      "case_ids": [
+        "AR-022"
+      ],
+      "unavailable_is_not_zero": true
+    }
+  },
+  "results": [
+    {
+      "case_id": "AR-001",
+      "scenario": "safe_no_anomaly_forbids_alert",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "tool_selection",
+        "forbidden_tool",
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-4",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-002",
+      "scenario": "warning_requires_threshold_and_risk",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "tool_selection",
+        "required_tool_recall",
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-003",
+      "scenario": "critical_requires_alert_and_escalate",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "tool_selection",
+        "required_alert",
+        "unsafe_auto"
+      ],
+      "required_tools": [
+        "alert_maintenance_team",
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index",
+        "alert_maintenance_team"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 3,
+      "required_tool_total": 3,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-004",
+      "scenario": "high_risk_index_requires_alert",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "required_alert",
+        "tool_selection"
+      ],
+      "required_tools": [
+        "alert_maintenance_team",
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index",
+        "alert_maintenance_team"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 3,
+      "required_tool_total": 3,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-005",
+      "scenario": "low_risk_index_forbids_alert",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "forbidden_tool",
+        "tool_selection"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-006",
+      "scenario": "unknown_tool_is_recorded_as_failure",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "unknown_tool",
+        "failure_reason",
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "nonexistent_tool",
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [
+        "nonexistent_tool"
+      ],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": false,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "unknown_tool",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-007",
+      "scenario": "malformed_risk_args_are_rejected",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "invalid_argument",
+        "failure_reason",
+        "forbidden_tool"
+      ],
+      "required_tools": [
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": false,
+      "required_tool_hits": 1,
+      "required_tool_total": 1,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": true,
+      "expected_failure_reason": "invalid_tool_arguments",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-008",
+      "scenario": "repeated_tool_requests_stop_at_max_iterations",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "max_iteration",
+        "failure_reason",
+        "forbidden_tool"
+      ],
+      "required_tools": [
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "get_sensor_thresholds",
+        "get_sensor_thresholds",
+        "get_sensor_thresholds",
+        "get_sensor_thresholds",
+        "get_sensor_thresholds"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 6,
+      "max_tool_calls": 5,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 1,
+      "required_tool_total": 1,
+      "forbidden_called": false,
+      "max_iteration_ok": false,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "max_iterations_exceeded",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-009",
+      "scenario": "empty_action_plan_escalates",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "routing",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "empty_action_plan",
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-2",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-010",
+      "scenario": "critical_verdict_conflict_escalates",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "routing",
+        "unsafe_auto",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "alert_maintenance_team",
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index",
+        "alert_maintenance_team"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 3,
+      "required_tool_total": 3,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "verdict_conflict",
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-C1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-011",
+      "scenario": "warning_verdict_conflict_human_review",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "routing",
+        "forbidden_tool"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "verdict_conflict",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-C2",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-012",
+      "scenario": "validator_reject_retries_available",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "grounding",
+        "routing",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "validator_reject",
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-F",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-013",
+      "scenario": "validator_reject_retry_exhausted_escalates",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "max_iteration",
+        "routing",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "retry_exhausted",
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-3",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-014",
+      "scenario": "validator_review_blocks_automatic_authority",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "unsafe_auto",
+        "grounding",
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "human_review_required",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-015",
+      "scenario": "validator_degraded_blocks_auto",
+      "status": "evaluated",
+      "dependency_mode": "mock_degraded",
+      "covers": [
+        "grounding",
+        "dependency_degraded",
+        "unsafe_auto"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "validator_degraded",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-016",
+      "scenario": "nli_contradiction_rejects_plan",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "grounding",
+        "routing",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "grounding_contradiction",
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-F2",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-017",
+      "scenario": "empty_sop_context_forces_review",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "grounding",
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "empty_sop_context",
+      "actual_route": "HUMAN_REVIEW",
+      "expected_route": "HUMAN_REVIEW",
+      "matched_rule": "R-F1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-018",
+      "scenario": "route_accuracy_safe_case",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "routing"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-4",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-019",
+      "scenario": "route_accuracy_critical_case",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "routing",
+        "unsafe_auto",
+        "required_alert"
+      ],
+      "required_tools": [
+        "alert_maintenance_team",
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index",
+        "alert_maintenance_team"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 3,
+      "required_tool_total": 3,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-1",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-020",
+      "scenario": "latency_metadata_required_but_not_thresholded",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "latency_observability"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-021",
+      "scenario": "token_usage_unavailable_is_not_zero",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "token_usage_observability",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "token_usage_unavailable",
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-022",
+      "scenario": "monetary_cost_unavailable_for_local_llm",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "cost_observability",
+        "failure_reason"
+      ],
+      "required_tools": [
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index"
+      ],
+      "forbidden_tools": [
+        "alert_maintenance_team"
+      ],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 2,
+      "max_tool_calls": 2,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 2,
+      "required_tool_total": 2,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": "monetary_cost_unavailable",
+      "actual_route": "AUTO",
+      "expected_route": "AUTO",
+      "matched_rule": "R-6",
+      "route_ok": true,
+      "unsafe_auto": false
+    },
+    {
+      "case_id": "AR-023",
+      "scenario": "live_reliability_case_is_opt_in_only",
+      "status": "skipped",
+      "skip_reason": "live_opt_in"
+    },
+    {
+      "case_id": "AR-024",
+      "scenario": "unsafe_auto_count_zero_for_safety_cases",
+      "status": "evaluated",
+      "dependency_mode": "mock",
+      "covers": [
+        "unsafe_auto",
+        "routing",
+        "required_alert"
+      ],
+      "required_tools": [
+        "alert_maintenance_team",
+        "calculate_risk_index",
+        "get_sensor_thresholds"
+      ],
+      "actual_tools": [
+        "get_sensor_thresholds",
+        "calculate_risk_index",
+        "alert_maintenance_team"
+      ],
+      "forbidden_tools": [],
+      "missing_required_tools": [],
+      "unknown_tools": [],
+      "forbidden_tools_called": [],
+      "tool_call_count": 3,
+      "max_tool_calls": 3,
+      "exact_tool_set_ok": true,
+      "required_tool_hits": 3,
+      "required_tool_total": 3,
+      "forbidden_called": false,
+      "max_iteration_ok": true,
+      "invalid_args_detected": false,
+      "expected_failure_reason": null,
+      "actual_route": "ESCALATE",
+      "expected_route": "ESCALATE",
+      "matched_rule": "R-1",
+      "route_ok": true,
+      "unsafe_auto": false
+    }
+  ],
+  "limits": [
+    "No live Ollama, NLI model, Chroma reindexing, Langfuse, external API, real alert, or live control action was executed.",
+    "Routes are produced by the current apply_routing_rules implementation; evaluator logic does not override product routing.",
+    "Latency, token usage, and monetary cost are reported as unavailable in mock mode rather than zero-filled."
+  ]
+}

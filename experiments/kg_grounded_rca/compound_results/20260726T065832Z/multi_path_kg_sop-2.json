@@ -1,0 +1,199 @@
+{
+  "condition": "multi_path_kg_sop",
+  "repetition": 2,
+  "response": {
+    "scenario_id": "twf-osf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "OSF(과부하 변형 고장): 공구 마모×토크가 M형 경계 12,000 min·Nm를 초과해 발생한 복합 기계적 과부하 상태",
+      "contributing_failure_modes": [
+        "TWF(공구 마모 고장): 공구 수명 200분 초과",
+        "공구 수명 초과에 따른 절삭 저항 증가",
+        "증가한 절삭 저항이 기여한 복합 기계적 과부하"
+      ],
+      "root_cause": "T-21의 공구 수명 초과로 TWF가 발생했고, 이에 따른 절삭 저항 증가가 복합 기계적 과부하에 기여하여 안전 우선 고장인 OSF가 유발된 복합 고장이다.",
+      "causal_chain": [
+        {
+          "statement": "CNC-02의 스핀들은 T-21 공구를 사용한다.",
+          "evidence_ids": [
+            "G1",
+            "G2"
+          ]
+        },
+        {
+          "statement": "공구 마모 시간이 200분을 초과하면 TWF가 유발되며, 그 원인은 공구 수명 초과이다.",
+          "evidence_ids": [
+            "G6",
+            "G7"
+          ]
+        },
+        {
+          "statement": "TWF는 절삭 저항 증가로 이어질 수 있다.",
+          "evidence_ids": [
+            "G8"
+          ]
+        },
+        {
+          "statement": "증가한 절삭 저항은 복합 기계적 과부하에 기여한다.",
+          "evidence_ids": [
+            "G9"
+          ]
+        },
+        {
+          "statement": "공구 마모×토크가 12,000 min·Nm를 초과하면 OSF가 유발되며, OSF의 원인은 복합 기계적 과부하이다.",
+          "evidence_ids": [
+            "G3",
+            "G4"
+          ]
+        }
+      ],
+      "confidence": 0.99
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "즉시 Feed Hold를 사용하고, 스핀들을 회전시킨 상태에서 공구를 안전 위치로 이동한 뒤 스핀들을 정지한다.",
+        "evidence_ids": [
+          "O1"
+        ]
+      },
+      {
+        "step_number": 2,
+        "action": "공구 파손, 토크 센서, 스핀들 런아웃, 공작물 클램프, 이송축 및 볼스크루의 손상이나 비정상 유격을 점검한다.",
+        "evidence_ids": [
+          "O2"
+        ]
+      },
+      {
+        "step_number": 3,
+        "action": "T-21을 제거해 마모·파손·치핑을 육안 점검하고 공구 프리세터로 실제 마모량을 측정한다.",
+        "evidence_ids": [
+          "T1"
+        ]
+      },
+      {
+        "step_number": 4,
+        "action": "규격에 맞는 새 공구를 장착하고 공구 길이 오프셋과 공구 수명 카운터를 재설정한다.",
+        "evidence_ids": [
+          "T2",
+          "O4"
+        ]
+      },
+      {
+        "step_number": 5,
+        "action": "이송, 회전 속도, 절입 깊이를 검토하고, 고토크 구간의 이송을 15~25% 낮추며 공구 수명 설정 단축 여부를 검토한다.",
+        "evidence_ids": [
+          "O3"
+        ]
+      },
+      {
+        "step_number": 6,
+        "action": "드라이런으로 프로그램 경로를 검증한 후 30% 이송 오버라이드로 시험 절삭하고 점진적으로 정상 속도로 복귀한다.",
+        "evidence_ids": [
+          "O5"
+        ]
+      },
+      {
+        "step_number": 7,
+        "action": "스크랩 소재로 시험 절삭하고 최근 생산품을 최소 3개 검사한다.",
+        "evidence_ids": [
+          "T3"
+        ]
+      },
+      {
+        "step_number": 8,
+        "action": "감독자 승인 후에만 생산을 재개한다.",
+        "evidence_ids": [
+          "T4"
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim": "CNC-02의 스핀들은 T-21 공구를 사용한다.",
+        "evidence_ids": [
+          "G1",
+          "G2"
+        ]
+      },
+      {
+        "claim": "공구 마모 시간이 200분을 초과하면 TWF가 유발된다.",
+        "evidence_ids": [
+          "G6"
+        ]
+      },
+      {
+        "claim": "TWF의 원인은 공구 수명 초과이다.",
+        "evidence_ids": [
+          "G7"
+        ]
+      },
+      {
+        "claim": "TWF는 절삭 저항 증가로 이어질 수 있다.",
+        "evidence_ids": [
+          "G8"
+        ]
+      },
+      {
+        "claim": "증가한 절삭 저항은 복합 기계적 과부하에 기여한다.",
+        "evidence_ids": [
+          "G9"
+        ]
+      },
+      {
+        "claim": "공구 마모×토크가 12,000 min·Nm를 초과하면 OSF가 유발된다.",
+        "evidence_ids": [
+          "G3"
+        ]
+      },
+      {
+        "claim": "OSF의 원인은 복합 기계적 과부하이다.",
+        "evidence_ids": [
+          "G4"
+        ]
+      },
+      {
+        "claim": "OSF에는 SOP-MNT-004가 완화 절차로 연결된다.",
+        "evidence_ids": [
+          "G5"
+        ]
+      },
+      {
+        "claim": "TWF에는 SOP-MNT-001이 완화 절차로 연결된다.",
+        "evidence_ids": [
+          "G10"
+        ]
+      }
+    ],
+    "uncertainties": [
+      "공구가 실제로 파손·치핑되었는지는 점검 전까지 확정할 수 없다.",
+      "토크 센서 이상, 스핀들 런아웃, 클램프 이상, 이송축 또는 볼스크루 손상 여부는 점검 전까지 확정할 수 없다.",
+      "채터 자국의 직접 원인이 TWF 또는 OSF인지, 다른 기계적 이상도 함께 작용했는지는 현재 근거만으로 확정할 수 없다.",
+      "최근 생산품의 치수·표면 품질 영향 범위는 검사 전까지 확정할 수 없다."
+    ]
+  },
+  "score": {
+    "passed_checks": 13,
+    "total_checks": 13,
+    "pass_rate": 1.0,
+    "checks": {
+      "primary_osf": true,
+      "detects_twf_contributor": true,
+      "explains_twf_osf_interaction": true,
+      "feed_hold_safe_sequence": true,
+      "damage_inspection": true,
+      "tool_replacement_and_reset": true,
+      "cutting_parameter_review": true,
+      "controlled_return": true,
+      "no_unprovided_procedures": true,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true
+    },
+    "cross_sop_coverage": true,
+    "invalid_evidence_ids": [],
+    "unprovided_procedures": [],
+    "action_count": 8,
+    "uncertainty_count": 4
+  }
+}

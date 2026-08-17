@@ -74,6 +74,7 @@ class BaseAgent:
                     "prompt_name": self.prompt_name,
                     "prompt_version": self.prompt_version,
                     "correlation_id": correlation_id,
+                    "llm_mode": get_settings().llm_mode,
                 },
             )
 
@@ -89,6 +90,7 @@ class BaseAgent:
                 "agent": self.__class__.__name__,
                 "prompt_name": self.prompt_name,
                 "prompt_version": self.prompt_version,
+                "llm_mode": get_settings().llm_mode,
                 "latency_ms": elapsed_ms,
             })
             return result

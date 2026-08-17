@@ -14,7 +14,7 @@ c12,R-4 SAFE이면 이상 탐지돼도 AUTO,SAFE,True,2,0,2,,False,AUTO,R-4
 c13,R-5 WARNING 이상없음 AUTO,WARNING,False,2,0,2,,False,AUTO,R-5
 c14,R-5 REJECT지만 재시도 미소진 + 이상없음,WARNING,False,2,1,2,REJECT,False,AUTO,R-5
 c15,R-6 APPROVE 자동처리,WARNING,True,2,0,2,APPROVE,False,AUTO,R-6
-c16,R-6 REVIEW 자동처리,WARNING,True,2,1,2,REVIEW,False,AUTO,R-6
+c16,R-6 REVIEW 인간검토,WARNING,True,2,1,2,REVIEW,False,HUMAN_REVIEW,R-6
 c17,R-F WARNING+이상+REJECT+재시도 미소진,WARNING,True,2,0,2,REJECT,False,ESCALATE,R-F
 c18,R-F WARNING+이상+추천없음(None),WARNING,True,2,0,2,,False,ESCALATE,R-F
 c19,우선순위 recommendation=None이면 R-2 미발동 후 R-F,WARNING,True,0,0,2,,False,ESCALATE,R-F

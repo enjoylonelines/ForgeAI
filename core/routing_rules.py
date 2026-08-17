@@ -8,9 +8,26 @@ from models.routing import RoutingDecision, RoutingInput
 # R-1 (P-A):   CRITICAL → ESCALATE (AUTO 금지)
 # R-2 (C-6):   빈 행동 계획 → ESCALATE
 # R-3 (B-3):   재시도 소진 + REJECT → ESCALATE
+# R-F1:        tool/dependency/grounding degraded → HUMAN_REVIEW
+# R-F2:        grounding contradiction → ESCALATE
 # R-4:         SAFE early-exit → AUTO
 # R-5:         이상 없음 → AUTO
-# R-6:         APPROVE/REVIEW → AUTO
+# R-6:         APPROVE → AUTO, REVIEW → HUMAN_REVIEW
+
+
+_HUMAN_REVIEW_FAILURES = {
+    "unknown_tool",
+    "invalid_tool_arguments",
+    "max_iterations_exceeded",
+    "validator_degraded",
+    "empty_sop_context",
+    "human_review_required",
+    "live_eval_not_run",
+}
+
+_ESCALATE_FAILURES = {
+    "grounding_contradiction",
+}
 
 
 def apply_routing_rules(inp: RoutingInput) -> RoutingDecision:
@@ -49,6 +66,20 @@ def apply_routing_rules(inp: RoutingInput) -> RoutingDecision:
             reason=f"재시도 소진 ({inp.retry_count}/{inp.max_retries}): 검증 REJECT 반복, 에스컬레이션",
         )
 
+    if inp.failure_reason in _ESCALATE_FAILURES:
+        return RoutingDecision(
+            route="ESCALATE",
+            matched_rule="R-F2",
+            reason=f"차단 실패 신호({inp.failure_reason}): 자동 처리 금지, 에스컬레이션",
+        )
+
+    if inp.failure_reason in _HUMAN_REVIEW_FAILURES:
+        return RoutingDecision(
+            route="HUMAN_REVIEW",
+            matched_rule="R-F1",
+            reason=f"검토 필요 실패 신호({inp.failure_reason}): 자동 처리 금지, 인간 검토 필요",
+        )
+
     if inp.risk_level == "SAFE":
         return RoutingDecision(
             route="AUTO",
@@ -63,11 +94,18 @@ def apply_routing_rules(inp: RoutingInput) -> RoutingDecision:
             reason="이상 없음: 정상 운전 상태, 자동 처리",
         )
 
-    if inp.recommendation in ("APPROVE", "REVIEW"):
+    if inp.recommendation == "REVIEW":
+        return RoutingDecision(
+            route="HUMAN_REVIEW",
+            matched_rule="R-6",
+            reason="검증 REVIEW: 자동 처리 금지, 인간 검토 필요",
+        )
+
+    if inp.recommendation == "APPROVE":
         return RoutingDecision(
             route="AUTO",
             matched_rule="R-6",
-            reason=f"검증 {inp.recommendation}: 계획 유효, 자동 처리",
+            reason="검증 APPROVE: 계획 유효, 자동 처리",
         )
 
     return RoutingDecision(

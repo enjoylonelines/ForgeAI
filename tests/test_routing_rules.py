@@ -58,7 +58,7 @@ def test_r6_approve_auto():
 
 def test_r6_review_auto():
     d = apply_routing_rules(_inp(recommendation="REVIEW"))
-    assert d.route == "AUTO"
+    assert d.route == "HUMAN_REVIEW"
     assert d.matched_rule == "R-6"
 
 
@@ -82,7 +82,7 @@ def test_r3_retry_exhausted_reject_only():
     """재시도 소진이어도 REJECT가 아니면 R-3 미발동"""
     d = apply_routing_rules(_inp(retry_count=2, max_retries=2, recommendation="REVIEW"))
     assert d.matched_rule == "R-6"
-    assert d.route == "AUTO"
+    assert d.route == "HUMAN_REVIEW"
 
 
 def test_r3_retry_not_exhausted_no_escalate():
@@ -140,3 +140,39 @@ def test_no_conflict_warning_not_human_review():
     d = apply_routing_rules(_inp(risk_level="WARNING", has_anomaly=True, verdict_conflict=False, recommendation="APPROVE"))
     assert d.route == "AUTO"
     assert d.matched_rule == "R-6"
+
+
+def test_unknown_tool_failure_goes_to_human_review():
+    d = apply_routing_rules(_inp(failure_reason="unknown_tool"))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-F1"
+
+
+def test_invalid_tool_arguments_go_to_human_review():
+    d = apply_routing_rules(_inp(failure_reason="invalid_tool_arguments"))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-F1"
+
+
+def test_max_iteration_failure_goes_to_human_review():
+    d = apply_routing_rules(_inp(failure_reason="max_iterations_exceeded"))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-F1"
+
+
+def test_validator_degraded_goes_to_human_review():
+    d = apply_routing_rules(_inp(failure_reason="validator_degraded"))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-F1"
+
+
+def test_empty_sop_context_goes_to_human_review():
+    d = apply_routing_rules(_inp(failure_reason="empty_sop_context"))
+    assert d.route == "HUMAN_REVIEW"
+    assert d.matched_rule == "R-F1"
+
+
+def test_grounding_contradiction_escalates():
+    d = apply_routing_rules(_inp(failure_reason="grounding_contradiction", recommendation="REJECT"))
+    assert d.route == "ESCALATE"
+    assert d.matched_rule == "R-F2"

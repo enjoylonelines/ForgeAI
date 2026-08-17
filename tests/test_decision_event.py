@@ -131,6 +131,7 @@ async def test_node_risk_assessment_records_event():
     pipeline = ForgePipeline.__new__(ForgePipeline)
 
     with patch("pipeline.forge_pipeline.assess_risk", return_value=_risk("CRITICAL")), \
+         patch("pipeline.forge_pipeline.ml_predictor.predict_proba", return_value=0.05), \
          patch.object(dl, "append", side_effect=captured.append):
         state = _GraphState(log=_LOG, correlation_id=_CID)
         await pipeline._node_risk_assessment(state)

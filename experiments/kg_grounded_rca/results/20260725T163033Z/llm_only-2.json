@@ -1,0 +1,115 @@
+{
+  "condition": "llm_only",
+  "repetition": 2,
+  "response": {
+    "scenario_id": "twf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "스핀들 절삭공구 T-17의 과도한 마모로 인한 절삭 성능 저하",
+      "root_cause": "정상 최대 사용시간 200분을 초과한 공구 사용이 가장 유력한 근본 원인이며, 마모 증가가 절삭 저항과 토크 상승 및 표면조도 악화로 이어진 것으로 추정됨",
+      "causal_chain": [
+        "공구 T-17 사용시간이 정상 최대치 초과",
+        "절삭날 마모 또는 손상 증가",
+        "절삭 저항 증가",
+        "토크가 최근 기준선 대비 상승",
+        "가공 표면조도 악화"
+      ],
+      "confidence": 0.86
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "CNC-01의 가공을 안전하게 정지하고 설비를 격리한 뒤 잔류 에너지를 통제한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 2,
+        "action": "공구 T-17을 탈거하여 절삭날의 마모, 치핑, 균열, 용착 및 비정상 변색 여부를 점검한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 3,
+        "action": "T-17을 규격에 맞는 새 공구 또는 사용 가능 판정을 받은 공구로 교체한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 4,
+        "action": "공구 홀더, 체결 상태, 런아웃, 스핀들 및 절삭유 공급 상태를 점검하여 추가 저항 요인을 배제한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 5,
+        "action": "공구 수명 누적값을 초기화하거나 교체 이력을 기록하고, 공구 교체 한계가 200분을 넘지 않도록 관리 조건을 확인한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 6,
+        "action": "저위험 조건에서 시험 가공을 수행하며 토크, 회전속도, 진동 및 이상음을 감시한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 7,
+        "action": "시험 가공품의 표면조도를 측정하고 토크가 최근 기준선 수준으로 회복되었는지 확인한 후 정상 생산을 재개한다.",
+        "evidence_ids": []
+      }
+    ],
+    "claims": [
+      {
+        "claim": "공구 사용시간 216분은 제시된 정상 최대치 200분을 16분 초과한다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "관측 토크 58 Nm는 최근 기준선 42 Nm보다 16 Nm 높다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "마지막 생산 주기 동안 절삭 토크가 상승했다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "가공 표면조도가 최근 기준선을 벗어났다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "관측 당시 회전속도는 1251 rpm, 공기 온도는 298.1 K, 공정 온도는 308.6 K였다.",
+        "evidence_ids": []
+      }
+    ],
+    "uncertainties": [
+      "공구 마모가 토크 상승과 표면조도 악화의 직접 원인이라는 판단은 지식 그래프, SOP 또는 분해 점검 결과가 없어 검증되지 않은 추정이다.",
+      "치핑, 균열, 용착, 홀더 체결 불량, 런아웃, 스핀들 이상, 절삭유 부족, 소재 편차 또는 절삭조건 변화가 기여했는지 확인되지 않았다.",
+      "제시된 온도와 회전속도가 해당 공정 규격 내 정상인지 판단할 기준이 없다.",
+      "정상 최대 사용시간 200분이 강제 폐기 한계인지 예방 교체 기준인지 확인되지 않았다.",
+      "안전 정지, 에너지 격리, 공구 교체 및 시험 가공의 구체적 절차와 허용 기준은 현장 SOP 및 제조사 지침으로 확인해야 한다."
+    ]
+  },
+  "score": {
+    "passed_checks": 9,
+    "total_checks": 12,
+    "pass_rate": 0.75,
+    "checks": {
+      "failure_mode_correct": true,
+      "root_cause_correct": true,
+      "no_unsupported_causes": true,
+      "no_unprovided_procedures": false,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true,
+      "controlled_stop": false,
+      "inspect_and_measure": true,
+      "replace_and_reset": true,
+      "trial_quality_approval": false
+    },
+    "unsupported_causes": [],
+    "unprovided_procedures": [
+      "런아웃",
+      "설비를 격리",
+      "절삭유",
+      "홀더"
+    ],
+    "invalid_evidence_ids": [],
+    "claim_count": 5,
+    "action_count": 7,
+    "uncertainty_count": 5
+  }
+}

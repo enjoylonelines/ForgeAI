@@ -11,6 +11,13 @@ load_dotenv()
 
 @dataclass
 class Settings:
+    llm_mode: str = field(default_factory=lambda: os.getenv("LLM_MODE", "ollama").lower())
+    llm_api_base_url: str = field(default_factory=lambda: os.getenv("LLM_API_BASE_URL", "https://api.openai.com/v1"))
+    llm_api_key: str | None = field(default_factory=lambda: os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY"))
+    llm_api_chat_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4.1-mini"))
+    llm_api_embedding_model: str = field(default_factory=lambda: os.getenv("LLM_EMBEDDING_MODEL", "text-embedding-3-small"))
+    llm_api_timeout_seconds: float = field(default_factory=lambda: float(os.getenv("LLM_API_TIMEOUT_SECONDS", "60.0")))
+
     ollama_base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
     ollama_chat_model: str = field(default_factory=lambda: os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b"))
     ollama_embed_model: str = field(default_factory=lambda: os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text"))

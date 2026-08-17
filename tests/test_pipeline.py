@@ -8,9 +8,9 @@ from langchain_core.documents import Document
 
 from agents.base import BaseAgent
 from agents.diagnostic_agent import DiagnosticAgent
-from models.diagnostic_result import DiagnosticResult
+from models.diagnostic_result import DiagnosticResult, ToolCallRecord
 from models.equipment_log import EquipmentLog, SensorReading
-from pipeline.forge_pipeline import ForgePipeline, PipelineResult
+from pipeline.forge_pipeline import ForgePipeline, PipelineResult, _GraphState
 
 _NOW_ISO = "2026-06-03T08:00:00+00:00"
 
@@ -61,6 +61,13 @@ _ACTION_PLAN_DICT = {
     "escalation_required": False,
     "escalation_reason": None,
 }
+
+
+@pytest.fixture(autouse=True)
+def _mock_ml_predictor():
+    """Pipeline tests exercise orchestration, not live XGBoost training."""
+    with patch("pipeline.forge_pipeline.ml_predictor.predict_proba", return_value=0.05):
+        yield
 
 
 def _make_mock_col(embed_vec: list[float]) -> MagicMock:
@@ -195,3 +202,112 @@ async def test_pipeline_correlation_id_propagated(sample_equipment_log):
     assert result.action_plan.correlation_id == cid
     assert result.validation_result is not None
     assert result.validation_result.correlation_id == cid
+
+
+async def test_routing_gate_blocks_diagnostic_tool_errors(
+    sample_equipment_log,
+    sample_action_plan,
+    sample_sop_context,
+    correlation_id,
+):
+    from models.anomaly_report import AnomalyReport
+    from models.risk_assessment import RiskAssessment
+    from models.validation_result import ValidationResult
+
+    pipeline = ForgePipeline.__new__(ForgePipeline)
+    state = _GraphState(
+        log=sample_equipment_log,
+        correlation_id=correlation_id,
+        risk_assessment=RiskAssessment(
+            equipment_id="M-12345",
+            assessed_at=datetime.now(timezone.utc),
+            risk_level="WARNING",
+            risk_factors=[],
+            summary="warning",
+        ),
+        anomaly_report=AnomalyReport(
+            equipment_id="M-12345",
+            timestamp=datetime.now(timezone.utc),
+            has_anomaly=True,
+            anomalies=[],
+            summary="warning",
+            raw_log_snippet="{}",
+        ),
+        diagnostic_result=DiagnosticResult(
+            equipment_id="M-12345",
+            tool_calls=[
+                ToolCallRecord(
+                    tool_name="nonexistent_tool",
+                    args={},
+                    output={"error": "Unknown tool: nonexistent_tool"},
+                )
+            ],
+        ),
+        sop_context=sample_sop_context,
+        action_plan=sample_action_plan,
+        validation_result=ValidationResult(
+            equipment_id="M-12345",
+            validated_at=datetime.now(timezone.utc),
+            overall_grounding_score=0.9,
+            is_valid=True,
+            recommendation="APPROVE",
+        ),
+    )
+
+    result = await pipeline._node_routing(state)
+
+    decision = result["routing_decision"]
+    assert decision.route == "HUMAN_REVIEW"
+    assert decision.matched_rule == "R-F1"
+
+
+async def test_routing_gate_blocks_empty_sop_context(
+    sample_equipment_log,
+    sample_action_plan,
+    correlation_id,
+):
+    from models.anomaly_report import AnomalyReport
+    from models.risk_assessment import RiskAssessment
+    from models.sop_context import SOPContext
+    from models.validation_result import ValidationResult
+
+    pipeline = ForgePipeline.__new__(ForgePipeline)
+    state = _GraphState(
+        log=sample_equipment_log,
+        correlation_id=correlation_id,
+        risk_assessment=RiskAssessment(
+            equipment_id="M-12345",
+            assessed_at=datetime.now(timezone.utc),
+            risk_level="WARNING",
+            risk_factors=[],
+            summary="warning",
+        ),
+        anomaly_report=AnomalyReport(
+            equipment_id="M-12345",
+            timestamp=datetime.now(timezone.utc),
+            has_anomaly=True,
+            anomalies=[],
+            summary="warning",
+            raw_log_snippet="{}",
+        ),
+        diagnostic_result=DiagnosticResult(equipment_id="M-12345"),
+        sop_context=SOPContext(
+            equipment_id="M-12345",
+            query_used="failed query",
+            chunks=[],
+        ),
+        action_plan=sample_action_plan,
+        validation_result=ValidationResult(
+            equipment_id="M-12345",
+            validated_at=datetime.now(timezone.utc),
+            overall_grounding_score=0.9,
+            is_valid=True,
+            recommendation="APPROVE",
+        ),
+    )
+
+    result = await pipeline._node_routing(state)
+
+    decision = result["routing_decision"]
+    assert decision.route == "HUMAN_REVIEW"
+    assert decision.matched_rule == "R-F1"

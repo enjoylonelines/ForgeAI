@@ -1,0 +1,46 @@
+{
+  "experiment": "kg-grounded-rca",
+  "scenario_id": "twf-compound-001",
+  "generated_at": "2026-07-25T16:34:14.986167+00:00",
+  "repetitions_per_condition": 3,
+  "summary": {
+    "llm_only": {
+      "runs": 3,
+      "mean_pass_rate": 0.7222,
+      "failure_mode_accuracy": 1.0,
+      "root_cause_accuracy": 1.0,
+      "unsupported_cause_runs": 0,
+      "unprovided_procedure_runs": 3,
+      "evidence_policy_accuracy": 1.0,
+      "causal_chain_evidence_accuracy": 1.0,
+      "complete_action_plan_runs": 0,
+      "action_count_values": [
+        7,
+        7,
+        8
+      ]
+    },
+    "kg_sop": {
+      "runs": 3,
+      "mean_pass_rate": 0.9445,
+      "failure_mode_accuracy": 1.0,
+      "root_cause_accuracy": 1.0,
+      "unsupported_cause_runs": 0,
+      "unprovided_procedure_runs": 0,
+      "evidence_policy_accuracy": 1.0,
+      "causal_chain_evidence_accuracy": 0.3333,
+      "complete_action_plan_runs": 3,
+      "action_count_values": [
+        4,
+        4,
+        4
+      ]
+    }
+  },
+  "limitations": [
+    "One synthetic TWF scenario cannot establish general RCA effectiveness.",
+    "Codex exec uses the currently authenticated default model; record the CLI configuration separately when strict model-version reproducibility is required.",
+    "The deterministic scorer checks expected concepts and evidence policy, not semantic equivalence of every possible valid diagnosis."
+  ],
+  "rescored_at": "2026-07-25T16:36:34.169742+00:00"
+}

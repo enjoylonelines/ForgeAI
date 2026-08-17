@@ -1,0 +1,115 @@
+{
+  "condition": "llm_only",
+  "repetition": 1,
+  "response": {
+    "scenario_id": "twf-compound-001",
+    "diagnosis": {
+      "primary_failure_mode": "절삭공구 T-17의 과도한 마모에 따른 절삭 성능 저하",
+      "root_cause": "T-17의 사용 시간이 정상 최대치 200분을 초과해 216분에 도달한 것이 가장 유력한 근본 원인이다.",
+      "causal_chain": [
+        "공구 사용 시간 한계 초과",
+        "절삭날 마모 증가",
+        "절삭 저항 증가",
+        "토크가 최근 기준 42 Nm에서 58 Nm로 상승",
+        "가공면 품질 저하 및 표면 거칠기 기준 이탈"
+      ],
+      "confidence": 0.88
+    },
+    "action_plan": [
+      {
+        "step_number": 1,
+        "action": "CNC-01의 가공을 중지하고 설비를 안전 상태로 전환한 뒤, 현장 안전 절차에 따라 에너지를 격리한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 2,
+        "action": "T-17의 절삭날 마모, 치핑, 파손 및 공구 고정 상태를 육안과 적절한 측정 방법으로 점검한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 3,
+        "action": "마모 한계를 초과했거나 손상이 확인되면 T-17을 규격에 맞는 공구로 교체하고 올바르게 장착한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 4,
+        "action": "공구 홀더, 스핀들 체결부, 절삭유 공급 및 칩 배출 상태를 점검하여 추가적인 토크 상승 요인이 없는지 확인한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 5,
+        "action": "무부하 점검 후 안전한 조건에서 시험 가공을 수행하고 토크, 회전 속도, 진동 및 이상음을 확인한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 6,
+        "action": "시험 가공품의 표면 거칠기를 측정하고 토크가 최근 기준 범위로 복귀했는지 확인한 뒤에만 생산을 재개한다.",
+        "evidence_ids": []
+      },
+      {
+        "step_number": 7,
+        "action": "공구 사용 시간, 점검 결과, 교체 내역 및 시험 가공 결과를 기록하고 공구 수명 관리 기준을 검토한다.",
+        "evidence_ids": []
+      }
+    ],
+    "claims": [
+      {
+        "claim": "T-17의 공구 사용 시간은 216분으로 정상 최대치 200분을 16분 초과했다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "절삭 토크는 최근 기준 42 Nm보다 16 Nm 높은 58 Nm였다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "마지막 생산 주기에서 절삭 토크가 상승했다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "가공면의 표면 거칠기가 최근 기준을 벗어났다.",
+        "evidence_ids": []
+      },
+      {
+        "claim": "공구 사용 시간 초과, 토크 상승, 표면 거칠기 악화는 과도한 공구 마모와 일관된 징후다.",
+        "evidence_ids": []
+      }
+    ],
+    "uncertainties": [
+      "공구 마모가 근본 원인이라는 판단은 정황상 가장 유력하지만, 절삭날의 실제 마모량이나 손상 상태가 측정되지 않아 확정되지 않았다.",
+      "홀더 체결 불량, 스핀들 이상, 절삭유 부족, 칩 배출 불량, 소재 변화 또는 절삭 조건 변화가 토크 상승에 기여했을 가능성은 배제되지 않았다.",
+      "회전 속도 1251 rpm과 두 온도 측정값의 허용 범위가 제공되지 않아 정상 여부를 판단할 수 없다.",
+      "표면 거칠기의 측정값과 허용 기준이 제공되지 않아 품질 이탈의 크기를 정량화할 수 없다.",
+      "제시된 정비 순서는 일반적인 안전 원칙에 기반한 가정이며, CNC-01 전용 SOP와 제조사 절차가 없으므로 실제 작업 전 현장 절차로 확인해야 한다.",
+      "공구 교체 후 토크가 복귀해야 할 구체적인 허용 범위는 제공되지 않았으며, 최근 기준 42 Nm를 비교 기준으로 사용하는 것은 검증이 필요한 가정이다."
+    ]
+  },
+  "score": {
+    "passed_checks": 8,
+    "total_checks": 12,
+    "pass_rate": 0.6667,
+    "checks": {
+      "failure_mode_correct": true,
+      "root_cause_correct": true,
+      "no_unsupported_causes": true,
+      "no_unprovided_procedures": false,
+      "no_invalid_evidence_ids": true,
+      "causal_chain_evidence_policy": true,
+      "claim_evidence_policy": true,
+      "action_evidence_policy": true,
+      "controlled_stop": false,
+      "inspect_and_measure": true,
+      "replace_and_reset": false,
+      "trial_quality_approval": false
+    },
+    "unsupported_causes": [],
+    "unprovided_procedures": [
+      "절삭유",
+      "칩 배출",
+      "홀더"
+    ],
+    "invalid_evidence_ids": [],
+    "claim_count": 5,
+    "action_count": 7,
+    "uncertainty_count": 6
+  }
+}
