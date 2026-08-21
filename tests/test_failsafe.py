@@ -9,7 +9,7 @@ LLM 장애 시 Rule Engine 단독 폴백(fail-safe) 검증.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -139,7 +139,9 @@ async def test_analyze_max_retries_falls_back_to_rule_only(api_client):
 @pytest.mark.asyncio
 async def test_health_returns_rule_only_mode_when_ollama_down(api_client):
     """/health는 Ollama 불능 시 mode='rule-only'를 200으로 반환한다."""
-    with patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
+    settings = MagicMock(llm_mode="ollama")
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
          patch("api.routes.chroma_health", return_value=True):
         response = await api_client.get("/api/v1/health")
 
@@ -180,6 +182,7 @@ async def test_health_returns_503_when_chroma_down(api_client):
 @pytest.mark.asyncio
 async def test_analyze_ollama_down_returns_200_rule_only(api_client):
     """완료 기준 #2: Ollama 강제 중단 상태에서 analyze가 200 + mode='rule-only'를 반환한다."""
+    settings = MagicMock(llm_mode="ollama")
     rule_only_result = PipelineResult(
         correlation_id="test-criterion-2",
         risk_assessment=RiskAssessment(
@@ -193,7 +196,8 @@ async def test_analyze_ollama_down_returns_200_rule_only(api_client):
         metrics=PipelineMetrics(risk_level="WARNING", mode="rule-only"),
     )
 
-    with patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
          patch("api.routes.ForgePipeline") as mock_cls:
         mock_pipeline = AsyncMock()
         mock_pipeline.run_rule_only.return_value = rule_only_result

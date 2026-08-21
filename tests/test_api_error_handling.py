@@ -7,7 +7,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from agents.base import MaxRetriesExceededError, ParseOutputError
-from main import app
+from main import app, lifespan
 from models.risk_assessment import RiskAssessment
 from models.validation_result import ValidationResult
 from pipeline.forge_pipeline import PipelineMetrics, PipelineResult
@@ -79,6 +79,7 @@ def _make_pipeline_result(recommendation: str) -> PipelineResult:
 
 async def test_analyze_llm_unavailable_falls_back_to_rule_only(api_client):
     """/analyze에서 Ollama 연결 실패 시 rule-only 폴백으로 200을 반환한다."""
+    settings = MagicMock(llm_mode="ollama")
     rule_only_result = PipelineResult(
         correlation_id="test-cid",
         risk_assessment=RiskAssessment(
@@ -91,7 +92,8 @@ async def test_analyze_llm_unavailable_falls_back_to_rule_only(api_client):
         ),
         metrics=PipelineMetrics(risk_level="WARNING", mode="rule-only"),
     )
-    with patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
          patch("api.routes.ForgePipeline") as mock_cls:
         mock_pipeline = AsyncMock()
         mock_pipeline.run_rule_only.return_value = rule_only_result
@@ -100,6 +102,26 @@ async def test_analyze_llm_unavailable_falls_back_to_rule_only(api_client):
 
     assert response.status_code == 200
     assert response.headers.get("x-mode") == "rule-only"
+
+
+async def test_analyze_api_mode_does_not_check_ollama(api_client):
+    """API provider mode runs the full pipeline without an Ollama dependency."""
+    settings = MagicMock(llm_mode="api", llm_api_key="test-key")
+    full_result = _make_pipeline_result("APPROVE")
+
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False) as ollama, \
+         patch("api.routes.ForgePipeline") as mock_cls:
+        mock_pipeline = AsyncMock()
+        mock_pipeline.run.return_value = full_result
+        mock_cls.return_value = mock_pipeline
+        response = await api_client.post("/api/v1/analyze", json=_VALID_LOG_BODY)
+
+    assert response.status_code == 200
+    assert response.headers.get("x-mode") == "full"
+    ollama.assert_not_awaited()
+    mock_pipeline.run.assert_awaited_once()
+    mock_pipeline.run_rule_only.assert_not_awaited()
 
 
 async def test_analyze_parse_error_returns_422(api_client):
@@ -213,7 +235,9 @@ async def test_control_plan_returns_dry_run_result(api_client):
 async def test_health_degraded_when_ollama_down(api_client):
     """/health에서 Ollama 불능 시 status=degraded, mode=rule-only, 200을 반환한다.
     rule-only 폴백으로 요청을 처리할 수 있으므로 readiness probe는 통과(200)한다."""
-    with patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
+    settings = MagicMock(llm_mode="ollama")
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False), \
          patch("api.routes.chroma_health", return_value=True), \
          patch("api.routes.get_sop_collection") as mock_col:
         mock_col.return_value.count.return_value = 5
@@ -239,3 +263,44 @@ async def test_health_ok_when_all_services_up(api_client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["collection_doc_count"] == 10
+
+
+async def test_health_api_mode_does_not_check_ollama(api_client):
+    """API provider readiness is independent from local Ollama availability."""
+    settings = MagicMock(llm_mode="api", llm_api_key="test-key")
+
+    with patch("api.routes.get_settings", return_value=settings), \
+         patch("api.routes.ollama_health", new_callable=AsyncMock, return_value=False) as ollama, \
+         patch("api.routes.chroma_health", return_value=True), \
+         patch("api.routes.get_sop_collection") as mock_col:
+        mock_col.return_value.count.return_value = 37
+        response = await api_client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["mode"] == "full"
+    assert body["llm_provider"] == "api"
+    assert body["llm"] == "ok"
+    assert body["ollama"] == "not_required"
+    ollama.assert_not_awaited()
+
+
+async def test_lifespan_api_mode_does_not_check_ollama():
+    """Application startup must not probe Ollama when API mode is selected."""
+    settings = MagicMock(
+        llm_mode="api",
+        llm_api_key="test-key",
+        llm_api_base_url="https://api.openai.com/v1",
+        llm_api_chat_model="gpt-4.1-mini",
+        chroma_persist_dir="./data/chroma",
+        port=8000,
+    )
+
+    with patch("main.get_settings", return_value=settings), \
+         patch("main.ollama_health", new_callable=AsyncMock, return_value=False) as ollama, \
+         patch("main.chroma_health", return_value=True):
+        async with lifespan(app):
+            pass
+
+    ollama.assert_not_awaited()

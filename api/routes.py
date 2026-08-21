@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from agents.base import MaxRetriesExceededError, ParseOutputError
 from control.bridge import ControlAdapterError, execute_control_plan
+from core.config import get_settings
 from core.logging import get_logger
 from core.ollama_client import health_check as ollama_health
 from models.equipment_log import EquipmentLog
@@ -31,13 +32,23 @@ class CSVAnalyzeResult(BaseModel):
     improvement_metrics: dict = {}
 
 
+async def _llm_provider_status() -> tuple[str, bool, str]:
+    """Return provider, readiness, and Ollama status for the configured mode."""
+    settings = get_settings()
+    if settings.llm_mode == "api":
+        return "api", bool(settings.llm_api_key), "not_required"
+
+    ollama_ok = await ollama_health()
+    return "ollama", ollama_ok, "ok" if ollama_ok else "error"
+
+
 @router.post("/analyze")
 async def analyze(request: Request, log: EquipmentLog) -> Response:
     correlation_id = request.headers.get("X-Correlation-ID") or uuid.uuid4().hex
-    ollama_ok = await ollama_health()
+    _, llm_ok, _ = await _llm_provider_status()
     pipeline = ForgePipeline()
     try:
-        if ollama_ok:
+        if llm_ok:
             result = await pipeline.run(log, correlation_id)
         else:
             result = await pipeline.run_rule_only(log, correlation_id)
@@ -180,7 +191,7 @@ async def ingest(
 
 @router.get("/health")
 async def health() -> JSONResponse:
-    ollama_ok = await ollama_health()
+    llm_provider, llm_ok, ollama_status = await _llm_provider_status()
     chroma_ok = chroma_health()
 
     try:
@@ -188,21 +199,23 @@ async def health() -> JSONResponse:
     except Exception:
         doc_count = -1
 
-    if ollama_ok and chroma_ok:
+    if llm_ok and chroma_ok:
         status, http_code = "ok", 200
     elif not chroma_ok:
         # ChromaDB 없이는 SOP 검색·임베딩 불가 — 근본적 장애
         status, http_code = "error", 503
     else:
-        # Ollama만 불능 → rule-only 모드로 요청 처리 가능, readiness 통과
+        # Configured LLM provider unavailable → rule-only mode remains ready.
         status, http_code = "degraded", 200
 
-    mode = "full" if ollama_ok else "rule-only"
+    mode = "full" if llm_ok else "rule-only"
     return JSONResponse(
         content={
             "status": status,
             "mode": mode,
-            "ollama": "ok" if ollama_ok else "error",
+            "llm_provider": llm_provider,
+            "llm": "ok" if llm_ok else "error",
+            "ollama": ollama_status,
             "chromadb": "ok" if chroma_ok else "error",
             "collection_doc_count": doc_count,
         },
