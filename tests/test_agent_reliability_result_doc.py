@@ -41,15 +41,16 @@ def test_agent_reliability_result_matches_json_metrics():
 
 def test_readme_links_agent_reliability_result():
     text = README.read_text(encoding="utf-8")
-    metrics = _summary()["metrics"]
 
     assert "docs/agent-reliability-result.md" in text
-    assert f"route accuracy {metrics['route_accuracy_pct']}%" in text
-    assert f"required-tool recall {metrics['required_tool_recall_pct']}%" in text
-    assert f"unsafe AUTO {metrics['unsafe_auto_count']}건" in text
-    assert "1회 opt-in smoke" in text
+    assert "에이전트 신뢰성 검증" in text
+    assert "기대한 라우팅 결과와 실제 결과가\n모두 일치" in text
+    assert "필요한 도구 호출 누락은 없었" in text
+    assert "자동 처리로\n넘어간 경우는 0건" in text
+    assert "실제 LLM 성능 벤치마크가 아니라" in text
+    assert "1회 선택 실행 확인" in text
     assert "운영 SLA" in text
-    assert "full ForgePipeline live benchmark" in text
+    assert "전체 ForgePipeline 실시간 벤치마크" in text
     assert "`unavailable`" in text
 
 
@@ -70,9 +71,14 @@ def test_agent_reliability_result_matches_live_api_smoke_json():
     assert f"status: `{cost['status']}`" in text
     assert "live_api | `observed`, not thresholded | `observed` | `unavailable`" in text
     assert "XGBoost segfault" not in text
-    assert "Pipeline orchestration tests mock `ml_predictor.predict_proba`" in text
+    assert "Pipeline orchestration 테스트는 `ml_predictor.predict_proba`를 mock 처리" in text
     assert "Result: `4 passed, 1 deselected`" in text
     assert "Result: `1 passed, 4 deselected`" in text
+    assert "포트폴리오용 한국어 표현" in text
+    assert "기대 라우팅 일치율 100.0%" in text
+    assert "필수 도구 호출 충족률 100.0%" in text
+    assert "위험 상황 자동 처리 0건" in text
+    assert "실제 LLM 성능 벤치마크가 아니라" in text
 
 
 def test_agent_reliability_contract_points_to_current_evidence():

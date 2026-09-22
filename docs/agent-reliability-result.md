@@ -88,25 +88,29 @@ The evaluator now reports observability as a separate block so missing measureme
 | mock | `unavailable` | `unavailable` | `unavailable` | no live model or billing metadata is used |
 | live_api | `observed`, not thresholded | `observed` | `unavailable` | one opt-in API request only, no pricing table |
 
-## Claims And Limits
+## KPI로 말할 수 있는 것과 없는 것
 
-What can be claimed:
+포트폴리오에서 말할 수 있는 것:
 
-- ForgeAI has a versioned mock Agent reliability contract with 24 cases.
-- The deterministic evaluator ran 23 mock cases and skipped 1 live opt-in case.
-- Required DiagnosticAgent tool recall is 100.0% on the mock contract.
-- Forbidden tool call rate is 0.0% on the mock contract.
-- Deterministic route accuracy is 100.0% on the mock contract.
-- Unsafe AUTO count is 0 on the mock contract.
-- API LLM access works in an opt-in live reliability smoke and returns token usage metadata.
+- 에이전트가 잘못된 도구 호출, 잘못된 인자, 반복 한도 초과, 근거 충돌 같은 실패 상황을 자동 처리하지 않도록 총 24개의 신뢰성 검증 사례를 정의했다.
+- 이 중 외부 모델 호출 없이 재현 가능한 23개 사례에서 기대한 라우팅 결과와 실제 결과가 모두 일치했다. 즉, 안전 계약 기준 라우팅 일치율은 100.0%다.
+- 49개의 필수 도구 호출 조건에서 누락은 없었다. 즉, 필수 도구 호출 충족률은 100.0%다.
+- 17개의 금지 도구 조건에서 금지 도구가 호출된 경우는 없었다.
+- 사람이 검토하거나 에스컬레이션해야 하는 상황이 자동 처리로 넘어간 경우는 0건이었다.
+- API 기반 LLM 호출은 1회 선택 실행 확인에서 성공했고, 토큰 사용량 메타데이터가 기록됐다.
 
-What cannot be claimed yet:
+아직 말할 수 없는 것:
 
-- Live Ollama/NLI/Chroma reliability was not measured.
-- The API provider was not used for a full ForgePipeline run in this result.
-- Latency distribution and p50/p95 are not established.
-- Monetary cost is not reported as a stable portfolio metric because no versioned pricing table is part of this repository contract.
-- Pipeline orchestration tests mock `ml_predictor.predict_proba`; they verify pipeline/routing behavior without training live XGBoost.
+- 이 결과는 실제 LLM 도구 선택 성능 벤치마크가 아니다. 검증 대상은 버전 관리된 mock 사례와 현재 라우팅 규칙이다.
+- Live Ollama, NLI 모델, Chroma 재색인까지 포함한 전체 신뢰성은 측정하지 않았다.
+- API provider는 전체 ForgePipeline 실시간 벤치마크로 검증하지 않았다.
+- 지연 시간은 단일 관측값일 뿐이며 p50/p95 분포나 운영 SLA로 말할 수 없다.
+- 비용은 버전이 고정된 가격표가 없어 안정적인 포트폴리오 KPI로 보고하지 않는다.
+- Pipeline orchestration 테스트는 `ml_predictor.predict_proba`를 mock 처리한다. 이 테스트는 실시간 XGBoost 학습이 아니라 파이프라인과 라우팅 동작을 검증한다.
+
+포트폴리오용 한국어 표현:
+
+> 에이전트 신뢰성 검증을 위해 24개 사례를 정의하고, 외부 모델 호출 없이 재현 가능한 23개 사례에서 기대 라우팅 일치율 100.0%, 필수 도구 호출 충족률 100.0%, 위험 상황 자동 처리 0건을 확인했습니다. 이는 실제 LLM 성능 벤치마크가 아니라, 잘못된 도구 호출·인자 오류·반복 한도 초과·근거 충돌이 자동 처리로 이어지지 않도록 검증한 안전 계약입니다.
 
 ## Boundary
 
