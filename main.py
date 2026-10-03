@@ -19,11 +19,26 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    ollama_ok = await ollama_health()
-    if not ollama_ok:
-        logger.warning({"event": "startup_warning", "message": f"Ollama not reachable at {settings.ollama_base_url}"})
+    if settings.llm_mode == "api":
+        if settings.llm_api_key:
+            logger.info({
+                "event": "startup_ok",
+                "llm_provider": "api",
+                "base_url": settings.llm_api_base_url,
+                "model": settings.llm_api_chat_model,
+            })
+        else:
+            logger.warning({
+                "event": "startup_warning",
+                "llm_provider": "api",
+                "message": "API mode configured without an API key",
+            })
     else:
-        logger.info({"event": "startup_ok", "ollama": settings.ollama_base_url, "model": settings.ollama_chat_model})
+        ollama_ok = await ollama_health()
+        if not ollama_ok:
+            logger.warning({"event": "startup_warning", "message": f"Ollama not reachable at {settings.ollama_base_url}"})
+        else:
+            logger.info({"event": "startup_ok", "ollama": settings.ollama_base_url, "model": settings.ollama_chat_model})
 
     chroma_ok = chroma_health()
     if not chroma_ok:
